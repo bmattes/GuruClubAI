@@ -468,14 +468,21 @@
       }
     });
     
-    // Speech Recognition using the Web Speech API.
+    // Detect iOS and initialize speech recognition accordingly.
+    function isIOS() {
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    }
+
     let recognition;
-    if ("webkitSpeechRecognition" in window) {
-      recognition = new webkitSpeechRecognition();
+    if (isIOS()) {
+        console.log("iOS device detected. Using Apple's default voice-to-text (webkitSpeechRecognition).");
+        recognition = new webkitSpeechRecognition();
+        recognition.lang = "en-US";
     } else if ("SpeechRecognition" in window) {
-      recognition = new SpeechRecognition();
+        recognition = new SpeechRecognition();
+        recognition.lang = "en-US";
     } else {
-      console.error("Speech Recognition not supported.");
+        console.error("Speech Recognition not supported.");
     }
     
     let isRecognizing = false;
