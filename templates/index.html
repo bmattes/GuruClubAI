@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Book Club Meeting</title>
+  <style>
+    :root {
+      --primary-color: #0070c9;
+      --background-color: #f8f8f8;
+      --border-color: #e0e0e0;
+      --shadow-color: rgba(0, 0, 0, 0.1);
+      --highlight-color: #ffcc00;
+      --accent-red: #e74c3c;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --transition-duration: 0.3s;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      font-family: var(--font-family);
+      background-color: var(--background-color);
+      color: #333;
+    }
+    
+    /* 2x2 grid that fills the viewport */
+    .meeting-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      width: 100vw;
+      height: 100vh;
+    }
+    
+    /* Chat box (participant) styling */
+    .participant {
+      background-color: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      margin: 10px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 4px 8px var(--shadow-color);
+      transition: box-shadow var(--transition-duration);
+      position: relative;
+    }
+    .participant:hover {
+      box-shadow: 0 6px 12px var(--shadow-color);
+    }
+    .participant.highlight {
+      border-color: var(--highlight-color);
+      box-shadow: 0 0 10px var(--highlight-color);
+    }
+    
+    .avatar {
+      background: linear-gradient(135deg, var(--primary-color), #005fa3);
+      color: #fff;
+      font-size: 48px;
+      text-align: center;
+      padding: 16px;
+    }
+    
+    .name {
+      background: #f0f0f0;
+      font-weight: bold;
+      text-align: center;
+      padding: 8px;
+      font-size: 18px;
+    }
+    
+    .messages {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      font-size: 16px;
+      text-align: center;
+    }
+    
+    /* Integrated User Controls (in the User chat box) */
+    #user-controls {
+      padding: 8px;
+      background-color: #fafafa;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #user-controls input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      transition: border var(--transition-duration);
+    }
+    #user-controls input[type="text"]:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+    /* Large red record button */
+    #recordButtonUser {
+      background-color: var(--accent-red);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 70px;
+      height: 70px;
+      font-size: 18px;
+      align-self: center;
+      transition: background-color var(--transition-duration);
+    }
+    #recordButtonUser:hover {
+      background-color: #c0392b;
+      cursor: pointer;
+    }
+    
+    /* Small control buttons in the top-right corner of the User box */
+    #user-small-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 8px;
+      z-index: 9999;
+    }
+    #user-small-controls button {
+      background: #eee;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 14px;
+      transition: background var(--transition-duration);
+    }
+    #user-small-controls button:hover {
+      background: #ddd;
+      cursor: pointer;
+    }
+    
+    /* Hide any old bottom controls */
+    .chat-controls {
+      display: none;
+    }
+    
+    /* Optional scrollbar styling for messages */
+    .messages::-webkit-scrollbar {
+      width: 6px;
+    }
+    .messages::-webkit-scrollbar-track {
+      background: #f0f0f0;
+    }
+    .messages::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span>AI Book Club Meeting</span>
+    <label for="userName">Your Name:</label>
+    <input type="text" id="userName" placeholder="Enter your name..." value="user_1">
+  </header>
+  
+  <div class="meeting-container">
+    <!-- User Chat Box (Top Left) -->
+    <div class="participant" id="participant-user">
+      <div class="avatar" id="avatar-user">You</div>
+      <div class="name" id="name-user">You</div>
+      <div class="messages" id="messages-user"></div>
+      <!-- Small controls in top-right corner -->
+      <div id="user-small-controls">
+        <button id="handButtonUser" title="Raise Hand">✋</button>
+        <button id="questionButtonUser" title="Ask a Question">?</button>
+      </div>
+      <!-- Integrated user controls: text input and record button -->
+      <div id="user-controls">
+        <input type="text" id="userInput" placeholder="Type your message..." />
+        <button id="recordButtonUser">Record</button>
+      </div>
+    </div>
+    
+    <!-- Sophia Chat Box (Top Right) -->
+    <div class="participant" id="participant-Sophia">
+      <div class="avatar" id="avatar-Sophia">S</div>
+      <div class="name" id="name-Sophia">Sophia</div>
+      <div class="messages" id="messages-Sophia"></div>
+    </div>
+    
+    <!-- Rex Chat Box (Bottom Left) -->
+    <div class="participant" id="participant-Rex">
+      <div class="avatar" id="avatar-Rex">R</div>
+      <div class="name" id="name-Rex">Rex</div>
+      <div class="messages" id="messages-Rex"></div>
+    </div>
+    
+    <!-- Ella Chat Box (Bottom Right) -->
+    <div class="participant" id="participant-Ella">
+      <div class="avatar" id="avatar-Ella">E</div>
+      <div class="name" id="name-Ella">Ella</div>
+      <div class="messages" id="messages-Ella"></div>
+    </div>
+  </div>
+  
+  <!-- (No bottom chat controls) -->
+  
+  <script>
+    // Global Variables & Element References
+    const userNameInput = document.getElementById("userName");
+    const conversationHistory = [];
+    let currentUserName = userNameInput.value.trim() || "user_1";
+    
+    // Global variables for audio skip functionality.
+    let currentAudio = null;
+    let currentAudioResolve = null;
+    let currentAgentName = null;
+    
+    // Global flag for raised hand.
+    let handRaised = false;
+    
+    // Helper: Remove highlight from all participant boxes.
+    function clearAllHighlights() {
+      ["user", "Sophia", "Rex", "Ella"].forEach(participant => {
+        document.getElementById("participant-" + (participant === "user" ? "user" : participant)).classList.remove("highlight");
+      });
+    }
+    
+    // Set the current message for a participant (ephemeral display).
+    function setParticipantMessage(participant, content, turn_id) {
+      const pane = document.getElementById("messages-" + (participant === "user" ? "user" : participant));
+      pane.innerHTML = "";
+      if (content) {
+        const div = document.createElement("div");
+        div.className = "message";
+        if (turn_id !== undefined) {
+          div.innerHTML = `<span class="debug-id">[Turn ${turn_id}]</span> ${content}`;
+        } else {
+          div.textContent = content;
+        }
+        pane.appendChild(div);
+        // Append a small Insight button.
+        const insightButton = document.createElement("button");
+        insightButton.textContent = "+1";
+        insightButton.style.fontSize = "10px";
+        insightButton.style.marginLeft = "10px";
+        insightButton.addEventListener("click", function(e) {
+          e.stopPropagation();
+          giveInsight(currentUserName, (participant === "user") ? currentUserName : participant);
+        });
+        pane.appendChild(insightButton);
+      }
+    }
+    
+    // Clear the message container for a participant.
+    function clearMessageForParticipant(participant) {
+      document.getElementById("messages-" + (participant === "user" ? "user" : participant)).innerHTML = "";
+    }
+    
+    async function getProfile() {
+      // Placeholder for profile updates.
+    }
+    
+    userNameInput.addEventListener("change", function() {
+      currentUserName = userNameInput.value.trim() || "user_1";
+      document.getElementById("name-user").textContent = currentUserName;
+      getProfile();
+    });
+    
+    const agentVoices = {
+      "Sophia": "XB0fDUnXU5powFXDhCwa",
+      "Rex": "TX3LPaxmHKxFdv7VOQHJ",
+      "Ella": "XrExE9yKIg1WjnnlVkGX"
+    };
+    
+    // Setup skip event listeners for agent chat boxes.
+    function setupSkipEventListeners() {
+      const agents = ["Sophia", "Rex", "Ella"];
+      agents.forEach(agent => {
+        const elem = document.getElementById("participant-" + agent);
+        if (elem) {
+          elem.addEventListener("click", function() {
+            if (currentAudio && currentAgentName === agent) {
+              console.log("Skip triggered for", agent);
+              currentAudio.pause();
+              currentAudio.currentTime = currentAudio.duration;
+              if (currentAudioResolve) {
+                currentAudioResolve();
+                currentAudioResolve = null;
+              }
+              clearAllHighlights();
+              clearMessageForParticipant(agent);
+              currentAudio = null;
+              currentAgentName = null;
+            }
+          });
+        }
+      });
+    }
+    setupSkipEventListeners();
+    
+    // TTS Playback with Highlighting.
+    async function playAudioForAgent(replyObj) {
+      const cleanReply = replyObj.content.replace(/^\s*\[TO:[^\]]+\]\s*/, "");
+      const voice_id = agentVoices[replyObj.name] || "default_voice_id";
+      console.log("Calling /api/tts for", replyObj.name, "with text:", cleanReply, "and voice_id:", voice_id);
+      try {
+        const response = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: cleanReply, voice_id: voice_id })
+        });
+        if (response.ok) {
+          const blob = await response.blob();
+          console.log("Received blob for", replyObj.name, "with size:", blob.size);
+          const audioUrl = URL.createObjectURL(blob);
+          const audio = new Audio(audioUrl);
+          currentAudio = audio;
+          currentAgentName = replyObj.name;
+          const playPromise = new Promise((resolve) => {
+            currentAudioResolve = resolve;
+            audio.onended = () => {
+              console.log("Finished playing audio for", replyObj.name);
+              clearAllHighlights();
+              clearMessageForParticipant(replyObj.name);
+              resolve();
+            };
+          });
+          await audio.play().catch(error => {
+            console.error("Audio.play() rejected for", replyObj.name, error);
+          });
+          await playPromise;
+          currentAudio = null;
+          currentAudioResolve = null;
+          currentAgentName = null;
+          return;
+        } else {
+          console.error("TTS API error for", replyObj.name, response.statusText);
+        }
+      } catch (error) {
+        console.error("Error in TTS call for", replyObj.name, error);
+      }
+    }
+    
+    async function playAgentResponses(replies) {
+      ["Sophia", "Rex", "Ella"].forEach(agent => clearMessageForParticipant(agent));
+      for (const replyObj of replies) {
+        if (handRaised) {
+          console.log("Hand raised; skipping remaining agent responses.");
+          break;
+        }
+        clearAllHighlights();
+        // Immediately display the agent's text and highlight their box.
+        setParticipantMessage(replyObj.name, replyObj.content, replyObj.turn_id);
+        document.getElementById("participant-" + replyObj.name).classList.add("highlight");
+        await playAudioForAgent(replyObj);
+      }
+    }
+    
+    async function giveInsight(giver, receiver) {
+      try {
+        const response = await fetch("/api/insight", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ giver: giver, receiver: receiver })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+          showInsightFeedback(receiver, data.insights);
+          getProfile();
+        }
+      } catch (error) {
+        console.error("Error giving insight:", error);
+      }
+    }
+    
+    function showInsightFeedback(receiver, insights) {
+      if (receiver === currentUserName || receiver === "user") {
+        let insightElem = document.getElementById("insight-user");
+        if (insightElem) {
+          insightElem.textContent = "Insights: " + insights;
+          insightElem.style.opacity = "1";
+          setTimeout(() => { insightElem.style.opacity = "0.5"; }, 2000);
+        }
+      } else {
+        const agentElem = document.getElementById("participant-" + receiver);
+        if (agentElem) {
+          const popup = document.createElement("div");
+          popup.textContent = "+1 Insight";
+          popup.style.position = "absolute";
+          popup.style.top = "5px";
+          popup.style.right = "5px";
+          popup.style.backgroundColor = "#ff0";
+          popup.style.color = "#000";
+          popup.style.padding = "2px 5px";
+          popup.style.borderRadius = "4px";
+          popup.style.fontSize = "12px";
+          agentElem.appendChild(popup);
+          setTimeout(() => {
+            agentElem.removeChild(popup);
+          }, 2000);
+        }
+      }
+    }
+    
+    async function sendMessage(message, extraPayload = {}) {
+      const payload = {
+        user_id: currentUserName,
+        user_message: message,
+        conversation_history: conversationHistory,
+        ...extraPayload
+      };
+      try {
+        const response = await fetch("/api/respond", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        data.conversation_history.forEach(msg => {
+          if (msg.turn_id !== undefined) {
+            if (!conversationHistory.some(m => m.turn_id === msg.turn_id)) {
+              conversationHistory.push(msg);
+            }
+          } else {
+            if (!conversationHistory.some(m => m.role === msg.role && m.content === msg.content)) {
+              conversationHistory.push(msg);
+            }
+          }
+        });
+        clearMessageForParticipant("user");
+        clearMessageForParticipant("Sophia");
+        clearMessageForParticipant("Rex");
+        clearMessageForParticipant("Ella");
+        setParticipantMessage("user", message);
+        await playAgentResponses(data.new_replies);
+        clearAllHighlights();
+        document.getElementById("participant-user").classList.add("highlight");
+        getProfile();
+      } catch (error) {
+        console.error("Error sending message:", error);
+      }
+    }
+    
+    // Send message on Enter in the text input.
+    document.getElementById("userInput").addEventListener("keydown", function(e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const message = this.value.trim();
+        if (message) {
+          conversationHistory.push({ role: "user", content: message });
+          setParticipantMessage("user", message);
+          sendMessage(message);
+          this.value = "";
+        }
+      }
+    });
+    
+    // Speech Recognition using the Web Speech API.
+    let recognition;
+    if ("webkitSpeechRecognition" in window) {
+      recognition = new webkitSpeechRecognition();
+    } else if ("SpeechRecognition" in window) {
+      recognition = new SpeechRecognition();
+    } else {
+      console.error("Speech Recognition not supported.");
+    }
+    
+    let isRecognizing = false;
+    if (recognition) {
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+      
+      let finalTranscript = "";
+      let latestInterim = "";
+      
+      recognition.onstart = function() {
+        console.log("Speech recognition started.");
+        isRecognizing = true;
+      };
+      
+      recognition.onresult = function(event) {
+        latestInterim = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          let transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            latestInterim += transcript;
+          }
+        }
+        console.log("Interim transcript:", latestInterim);
+        console.log("Final transcript so far:", finalTranscript);
+      };
+      
+      recognition.onerror = function(event) {
+        console.error("Speech recognition error:", event.error);
+      };
+      
+      recognition.onend = function() {
+        console.log("Speech recognition ended.");
+        isRecognizing = false;
+        let transcriptToSend = finalTranscript || latestInterim;
+        console.log("Transcript to send:", transcriptToSend);
+        if (transcriptToSend) {
+          conversationHistory.push({ role: "user", content: transcriptToSend });
+          setParticipantMessage("user", transcriptToSend);
+          sendMessage(transcriptToSend);
+        }
+        finalTranscript = "";
+        latestInterim = "";
+      };
+      
+      // Attach recognition start/stop to the integrated record button.
+      document.getElementById("recordButtonUser").addEventListener("click", function() {
+        if (recognition) {
+          if (isRecognizing) {
+            console.log("Stopping recording...");
+            recognition.stop();
+          } else {
+            console.log("Starting recording...");
+            recognition.start();
+          }
+        }
+      });
+    }
+    
+    // Event listener for the Question button in the User chat box.
+    document.getElementById("questionButtonUser").addEventListener("click", function() {
+      console.log("Question button pressed (User box).");
+      handRaised = false;
+      clearAllHighlights();
+      document.getElementById("participant-user").classList.add("highlight");
+      // Force a question by sending an empty message with the force_question flag.
+      sendMessage("", { force_question: true });
+      setTimeout(() => { this.classList.remove("highlight"); }, 1000);
+    });
+  </script>
+</body>
+</html>

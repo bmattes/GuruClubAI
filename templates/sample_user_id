@@ -1,0 +1,7 @@
+{
+  "user_id": "user_1",
+  "conversation_history": [
+    { "role": "user", "content": "I love epic fantasy novels." },
+    { "role": "assistant", "name": "Sophia", "content": "Your passion for detailed world-building is evident." }
+  ]
+}
