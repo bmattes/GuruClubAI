@@ -225,6 +225,11 @@
   </div>
   
   <script>
+    
+    // Global audio player element—reuse this for all TTS playback.
+    const audioPlayer = new Audio();
+
+
     // --- New: Front-End Conversation Manager ---
     // This function replicates the back-end conversation_manager.
     function conversation_manager(query) {
@@ -325,12 +330,12 @@
     }
     setupSkipEventListeners();
     
-    // --- TTS Playback with Highlighting ---
     async function playAudioForAgent(replyObj) {
-      const cleanReply = replyObj.content.replace(/^\s*\[TO:[^\]]+\]\s*/, "");
-      const voice_id = agentVoices[replyObj.name] || "default_voice_id";
-      console.log("Calling /api/tts for", replyObj.name, "with text:", cleanReply, "and voice_id:", voice_id);
-      try {
+        const cleanReply = replyObj.content.replace(/^\s*\[TO:[^\]]+\]\s*/, "");
+        const voice_id = agentVoices[replyObj.name] || "default_voice_id";
+        console.log("Calling /api/tts for", replyObj.name, "with text:", cleanReply, "and voice_id:", voice_id);
+
+        try {
         const response = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -340,33 +345,44 @@
           const blob = await response.blob();
           console.log("Received blob for", replyObj.name, "with size:", blob.size);
           const audioUrl = URL.createObjectURL(blob);
-          const audio = new Audio(audioUrl);
-          currentAudio = audio;
+          
+          // Instead of creating a new Audio object, use the global audioPlayer.
+          audioPlayer.src = audioUrl;
+          // (Optionally, you can call audioPlayer.load();)
+          
+          // Set globals to track which agent is currently playing.
+          currentAudio = audioPlayer;
           currentAgentName = replyObj.name;
+          
+          // Create a promise that resolves when playback ends.
           const playPromise = new Promise((resolve) => {
-            currentAudioResolve = resolve;
-            audio.onended = () => {
+            audioPlayer.onended = () => {
               console.log("Finished playing audio for", replyObj.name);
               clearAllHighlights();
               clearMessageForParticipant(replyObj.name);
               resolve();
             };
           });
-          await audio.play().catch(error => {
+          
+          // Attempt to play the audio.
+          await audioPlayer.play().catch(error => {
             console.error("Audio.play() rejected for", replyObj.name, error);
           });
+          
           await playPromise;
+          
+          // Clear the globals.
           currentAudio = null;
-          currentAudioResolve = null;
           currentAgentName = null;
           return;
         } else {
           console.error("TTS API error for", replyObj.name, response.statusText);
         }
-      } catch (error) {
+        } catch (error) {
         console.error("Error in TTS call for", replyObj.name, error);
-      }
-    }
+        }
+        }
+
     
     // --- New: Sequential Agent Reply Handling ---
     async function handleAgentResponses(force_question = false) {
