@@ -225,7 +225,24 @@
   </div>
   
   <script>
-    // Global Variables & Element References
+    // --- New: Front-End Conversation Manager ---
+    // This function replicates the back-end conversation_manager.
+    function conversation_manager(query) {
+      let agents = ["Sophia", "Rex", "Ella"];
+      if (query && query.trim().length > 0) {
+        let lowered = query.toLowerCase();
+        let addressed = [];
+        agents.forEach(agent => {
+          if (lowered.indexOf(agent.toLowerCase()) !== -1) {
+            addressed.push(agent);
+          }
+        });
+        return addressed.concat(agents.filter(a => addressed.indexOf(a) === -1));
+      }
+      return agents;
+    }
+
+    // --- Global Variables & Element References ---
     let currentUserName = "user_1"; // We'll ask for the username every time.
     const conversationHistory = [];
     
@@ -237,14 +254,13 @@
     // Global flag for raised hand.
     let handRaised = false;
     
-    // Helper: Remove highlight from all participant boxes.
+    // --- Helper Functions ---
     function clearAllHighlights() {
       ["user", "Sophia", "Rex", "Ella"].forEach(participant => {
         document.getElementById("participant-" + (participant === "user" ? "user" : participant)).classList.remove("highlight");
       });
     }
     
-    // Set the current message for a participant (ephemeral display).
     function setParticipantMessage(participant, content, turn_id) {
       const pane = document.getElementById("messages-" + (participant === "user" ? "user" : participant));
       pane.innerHTML = "";
@@ -270,7 +286,6 @@
       }
     }
     
-    // Clear the message container for a participant.
     function clearMessageForParticipant(participant) {
       document.getElementById("messages-" + (participant === "user" ? "user" : participant)).innerHTML = "";
     }
@@ -285,7 +300,6 @@
       "Ella": "XrExE9yKIg1WjnnlVkGX"
     };
     
-    // Setup skip event listeners for agent chat boxes.
     function setupSkipEventListeners() {
       const agents = ["Sophia", "Rex", "Ella"];
       agents.forEach(agent => {
@@ -311,7 +325,7 @@
     }
     setupSkipEventListeners();
     
-    // TTS Playback with Highlighting.
+    // --- TTS Playback with Highlighting ---
     async function playAudioForAgent(replyObj) {
       const cleanReply = replyObj.content.replace(/^\s*\[TO:[^\]]+\]\s*/, "");
       const voice_id = agentVoices[replyObj.name] || "default_voice_id";
@@ -354,67 +368,61 @@
       }
     }
     
-    async function playAgentResponses(replies) {
-      ["Sophia", "Rex", "Ella"].forEach(agent => clearMessageForParticipant(agent));
-      for (const replyObj of replies) {
-        if (handRaised) {
-          console.log("Hand raised; skipping remaining agent responses.");
+    // --- New: Sequential Agent Reply Handling ---
+    async function handleAgentResponses(force_question = false) {
+      // Get the most recent user message from conversationHistory.
+      let lastUserMessage = "";
+      for (let i = conversationHistory.length - 1; i >= 0; i--) {
+        if (conversationHistory[i].role === "user") {
+          lastUserMessage = conversationHistory[i].content;
           break;
         }
-        clearAllHighlights();
-        // Immediately display the agent's text and highlight their box.
-        setParticipantMessage(replyObj.name, replyObj.content, replyObj.turn_id);
-        document.getElementById("participant-" + replyObj.name).classList.add("highlight");
-        await playAudioForAgent(replyObj);
       }
-    }
-    
-    async function giveInsight(giver, receiver) {
-      try {
-        const response = await fetch("/api/insight", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ giver: giver, receiver: receiver })
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-          showInsightFeedback(receiver, data.insights);
-          getProfile();
-        }
-      } catch (error) {
-        console.error("Error giving insight:", error);
-      }
-    }
-    
-    function showInsightFeedback(receiver, insights) {
-      if (receiver === currentUserName || receiver === "user") {
-        let insightElem = document.getElementById("insight-user");
-        if (insightElem) {
-          insightElem.textContent = "Insights: " + insights;
-          insightElem.style.opacity = "1";
-          setTimeout(() => { insightElem.style.opacity = "0.5"; }, 2000);
-        }
-      } else {
-        const agentElem = document.getElementById("participant-" + receiver);
-        if (agentElem) {
-          const popup = document.createElement("div");
-          popup.textContent = "+1 Insight";
-          popup.style.position = "absolute";
-          popup.style.top = "5px";
-          popup.style.right = "5px";
-          popup.style.backgroundColor = "#ff0";
-          popup.style.color = "#000";
-          popup.style.padding = "2px 5px";
-          popup.style.borderRadius = "4px";
-          popup.style.fontSize = "12px";
-          agentElem.appendChild(popup);
-          setTimeout(() => {
-            agentElem.removeChild(popup);
-          }, 2000);
+      
+      // If forcing a question, choose one agent at random; otherwise, use the conversation_manager
+      // with the user's message to set the agent order.
+      let agentsToReply = force_question 
+          ? [randomChoice(["Sophia", "Rex", "Ella"])]
+          : conversation_manager(lastUserMessage);
+      
+      // Loop through each agent in order.
+      for (let i = 0; i < agentsToReply.length; i++) {
+        const agent = agentsToReply[i];
+        const payload = {
+          user_id: currentUserName,
+          conversation_history: conversationHistory,
+          agent: agent,
+          force_question: force_question
+        };
+        try {
+          const response = await fetch("/api/agent_reply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await response.json();
+          const reply = data.reply;
+          // Append the agent's reply to the conversation history.
+          conversationHistory.push({ role: "assistant", name: agent, content: reply });
+          // Update UI: display the reply and highlight the agent's chat box.
+          setParticipantMessage(agent, reply);
+          document.getElementById("participant-" + agent).classList.add("highlight");
+          // Chain the audio playback.
+          await playAudioForAgent({ name: agent, content: reply });
+          clearAllHighlights();
+        } catch (error) {
+          console.error("Error handling reply for agent", agent, error);
         }
       }
     }
+
     
+    // Helper to choose a random element from an array.
+    function randomChoice(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+    
+    // --- Updated sendMessage Function ---
     async function sendMessage(message, extraPayload = {}) {
       const payload = {
         user_id: currentUserName,
@@ -423,29 +431,18 @@
         ...extraPayload
       };
       try {
-        const response = await fetch("/api/respond", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        const data = await response.json();
-        data.conversation_history.forEach(msg => {
-          if (msg.turn_id !== undefined) {
-            if (!conversationHistory.some(m => m.turn_id === msg.turn_id)) {
-              conversationHistory.push(msg);
-            }
-          } else {
-            if (!conversationHistory.some(m => m.role === msg.role && m.content === msg.content)) {
-              conversationHistory.push(msg);
-            }
-          }
-        });
+        // Append the user message to conversationHistory.
+        conversationHistory.push({ role: "user", content: message });
+        // Clear all participant message boxes.
         clearMessageForParticipant("user");
         clearMessageForParticipant("Sophia");
         clearMessageForParticipant("Rex");
         clearMessageForParticipant("Ella");
+        // Update the user chat box with the new message.
         setParticipantMessage("user", message);
-        await playAgentResponses(data.new_replies);
+        // Sequentially fetch and play agent replies.
+        await handleAgentResponses(extraPayload.force_question || false);
+        // Clear all highlights, then highlight the user box.
         clearAllHighlights();
         document.getElementById("participant-user").classList.add("highlight");
         getProfile();
@@ -454,35 +451,34 @@
       }
     }
     
-    // Send message on Enter in the text input.
+    // --- Event Listeners for User Input ---
     document.getElementById("userInput").addEventListener("keydown", function(e) {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         const message = this.value.trim();
         if (message) {
-          conversationHistory.push({ role: "user", content: message });
-          setParticipantMessage("user", message);
           sendMessage(message);
           this.value = "";
         }
       }
     });
     
-    // Detect iOS and initialize speech recognition accordingly.
+    // --- Speech Recognition Setup ---
     function isIOS() {
-        return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     }
-
+    
     let recognition;
-    if (isIOS()) {
-        console.log("iOS device detected. Using Apple's default voice-to-text (webkitSpeechRecognition).");
-        recognition = new webkitSpeechRecognition();
-        recognition.lang = "en-US";
+    if ("webkitSpeechRecognition" in window) {
+      console.log("webkitSpeechRecognition available, using it.");
+      recognition = new webkitSpeechRecognition();
+      recognition.lang = "en-US";
     } else if ("SpeechRecognition" in window) {
-        recognition = new SpeechRecognition();
-        recognition.lang = "en-US";
+      console.log("Using SpeechRecognition.");
+      recognition = new SpeechRecognition();
+      recognition.lang = "en-US";
     } else {
-        console.error("Speech Recognition not supported.");
+      console.error("Speech Recognition not supported.");
     }
     
     let isRecognizing = false;
@@ -523,15 +519,12 @@
         let transcriptToSend = finalTranscript || latestInterim;
         console.log("Transcript to send:", transcriptToSend);
         if (transcriptToSend) {
-          conversationHistory.push({ role: "user", content: transcriptToSend });
-          setParticipantMessage("user", transcriptToSend);
           sendMessage(transcriptToSend);
         }
         finalTranscript = "";
         latestInterim = "";
       };
       
-      // Attach recognition start/stop to the integrated record button.
       document.getElementById("recordButtonUser").addEventListener("click", function() {
         if (recognition) {
           if (isRecognizing) {
@@ -545,23 +538,22 @@
       });
     }
     
-    // Event listener for the Question button in the User chat box.
+    // --- Event Listener for the Question Button ---
     document.getElementById("questionButtonUser").addEventListener("click", function() {
       console.log("Question button pressed (User box).");
       handRaised = false;
       clearAllHighlights();
       document.getElementById("participant-user").classList.add("highlight");
-      // Force a question by sending an empty message with the force_question flag.
+      // Force a question by sending an empty message with force_question flag.
       sendMessage("", { force_question: true });
       setTimeout(() => { this.classList.remove("highlight"); }, 1000);
     });
     
-    // Always show the intro modal on page load.
+    // --- Intro Modal Logic ---
     window.addEventListener("load", function() {
       document.getElementById("introModal").style.display = "flex";
     });
     
-    // Event listener for the modal submit button.
     document.getElementById("introSubmitButton").addEventListener("click", function() {
       const nameInput = document.getElementById("introNameInput").value.trim();
       if (nameInput) {
@@ -573,7 +565,6 @@
       }
     });
     
-    // Trigger the modal submit button when Enter is pressed in the input.
     document.getElementById("introNameInput").addEventListener("keydown", function(e) {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();

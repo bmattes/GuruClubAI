@@ -142,6 +142,22 @@ def generate_agent_reply(agent, conversation_history, force_question=False):
     print(f"{datetime.datetime.now()} - Agent {agent} reply (first 50 chars): {reply[:50]}...")
     return reply
 
+@app.route("/api/agent_reply", methods=["POST"])
+def agent_reply():
+    """
+    Generate a reply for a single agent based on the current conversation history.
+    This endpoint enables sequential agent responses so that each agent's reply
+    is generated after the conversation history has been updated with previous replies.
+    """
+    data = request.get_json()
+    user_id = data.get("user_id", "user_1")
+    conversation_history = data.get("conversation_history", [])
+    agent = data.get("agent")
+    force_question = data.get("force_question", False)
+    
+    reply_text = generate_agent_reply(agent, conversation_history, force_question)
+    return jsonify({"reply": reply_text})
+
 def generate_user_profile(conversation_history, existing_profile=None):
     """
     Generate an updated user profile by considering both the new user messages
