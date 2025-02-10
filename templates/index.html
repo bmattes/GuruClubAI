@@ -225,13 +225,10 @@
   </div>
   
   <script>
-    
-    // Global audio player element—reuse this for all TTS playback.
+    // --- Global Audio Player for TTS Playback ---
     const audioPlayer = new Audio();
 
-
-    // --- New: Front-End Conversation Manager ---
-    // This function replicates the back-end conversation_manager.
+    // --- New: Front-End Conversation Manager (same as before) ---
     function conversation_manager(query) {
       let agents = ["Sophia", "Rex", "Ella"];
       if (query && query.trim().length > 0) {
@@ -246,12 +243,12 @@
       }
       return agents;
     }
-
+    
     // --- Global Variables & Element References ---
     let currentUserName = "user_1"; // We'll ask for the username every time.
     const conversationHistory = [];
     
-    // Global variables for audio skip functionality.
+    // Global variables for TTS skip functionality.
     let currentAudio = null;
     let currentAudioResolve = null;
     let currentAgentName = null;
@@ -330,12 +327,12 @@
     }
     setupSkipEventListeners();
     
+    // --- TTS Playback with Global Audio Element ---
     async function playAudioForAgent(replyObj) {
-        const cleanReply = replyObj.content.replace(/^\s*\[TO:[^\]]+\]\s*/, "");
-        const voice_id = agentVoices[replyObj.name] || "default_voice_id";
-        console.log("Calling /api/tts for", replyObj.name, "with text:", cleanReply, "and voice_id:", voice_id);
-
-        try {
+      const cleanReply = replyObj.content.replace(/^\s*\[TO:[^\]]+\]\s*/, "");
+      const voice_id = agentVoices[replyObj.name] || "default_voice_id";
+      console.log("Calling /api/tts for", replyObj.name, "with text:", cleanReply, "and voice_id:", voice_id);
+      try {
         const response = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -346,15 +343,11 @@
           console.log("Received blob for", replyObj.name, "with size:", blob.size);
           const audioUrl = URL.createObjectURL(blob);
           
-          // Instead of creating a new Audio object, use the global audioPlayer.
+          // Use the global audioPlayer.
           audioPlayer.src = audioUrl;
-          // (Optionally, you can call audioPlayer.load();)
-          
-          // Set globals to track which agent is currently playing.
           currentAudio = audioPlayer;
           currentAgentName = replyObj.name;
           
-          // Create a promise that resolves when playback ends.
           const playPromise = new Promise((resolve) => {
             audioPlayer.onended = () => {
               console.log("Finished playing audio for", replyObj.name);
@@ -364,25 +357,20 @@
             };
           });
           
-          // Attempt to play the audio.
           await audioPlayer.play().catch(error => {
             console.error("Audio.play() rejected for", replyObj.name, error);
           });
-          
           await playPromise;
-          
-          // Clear the globals.
           currentAudio = null;
           currentAgentName = null;
           return;
         } else {
           console.error("TTS API error for", replyObj.name, response.statusText);
         }
-        } catch (error) {
+      } catch (error) {
         console.error("Error in TTS call for", replyObj.name, error);
-        }
-        }
-
+      }
+    }
     
     // --- New: Sequential Agent Reply Handling ---
     async function handleAgentResponses(force_question = false) {
@@ -395,13 +383,11 @@
         }
       }
       
-      // If forcing a question, choose one agent at random; otherwise, use the conversation_manager
-      // with the user's message to set the agent order.
+      // Determine agent order based on the last user message.
       let agentsToReply = force_question 
           ? [randomChoice(["Sophia", "Rex", "Ella"])]
           : conversation_manager(lastUserMessage);
       
-      // Loop through each agent in order.
       for (let i = 0; i < agentsToReply.length; i++) {
         const agent = agentsToReply[i];
         const payload = {
@@ -418,12 +404,9 @@
           });
           const data = await response.json();
           const reply = data.reply;
-          // Append the agent's reply to the conversation history.
           conversationHistory.push({ role: "assistant", name: agent, content: reply });
-          // Update UI: display the reply and highlight the agent's chat box.
           setParticipantMessage(agent, reply);
           document.getElementById("participant-" + agent).classList.add("highlight");
-          // Chain the audio playback.
           await playAudioForAgent({ name: agent, content: reply });
           clearAllHighlights();
         } catch (error) {
@@ -431,9 +414,8 @@
         }
       }
     }
-
     
-    // Helper to choose a random element from an array.
+    // Helper to choose a random element.
     function randomChoice(arr) {
       return arr[Math.floor(Math.random() * arr.length)];
     }
@@ -447,18 +429,13 @@
         ...extraPayload
       };
       try {
-        // Append the user message to conversationHistory.
         conversationHistory.push({ role: "user", content: message });
-        // Clear all participant message boxes.
         clearMessageForParticipant("user");
         clearMessageForParticipant("Sophia");
         clearMessageForParticipant("Rex");
         clearMessageForParticipant("Ella");
-        // Update the user chat box with the new message.
         setParticipantMessage("user", message);
-        // Sequentially fetch and play agent replies.
         await handleAgentResponses(extraPayload.force_question || false);
-        // Clear all highlights, then highlight the user box.
         clearAllHighlights();
         document.getElementById("participant-user").classList.add("highlight");
         getProfile();
@@ -467,7 +444,7 @@
       }
     }
     
-    // --- Event Listeners for User Input ---
+    // --- Event Listener for User Input ---
     document.getElementById("userInput").addEventListener("keydown", function(e) {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -479,80 +456,66 @@
       }
     });
     
-    // --- Speech Recognition Setup ---
-    function isIOS() {
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    }
-    
-    let recognition;
-    if ("webkitSpeechRecognition" in window) {
-      console.log("webkitSpeechRecognition available, using it.");
-      recognition = new webkitSpeechRecognition();
-      recognition.lang = "en-US";
-    } else if ("SpeechRecognition" in window) {
-      console.log("Using SpeechRecognition.");
-      recognition = new SpeechRecognition();
-      recognition.lang = "en-US";
-    } else {
-      console.error("Speech Recognition not supported.");
-    }
-    
-    let isRecognizing = false;
-    if (recognition) {
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
-      
-      let finalTranscript = "";
-      let latestInterim = "";
-      
-      recognition.onstart = function() {
-        console.log("Speech recognition started.");
-        isRecognizing = true;
-      };
-      
-      recognition.onresult = function(event) {
-        latestInterim = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          let transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            latestInterim += transcript;
+    // --- MediaRecorder Setup for Google Cloud Speech-to-Text ---
+    let mediaRecorder;
+
+    let audioChunks = [];
+    async function initMediaRecorder() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        mediaRecorder.ondataavailable = event => {
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
           }
-        }
-        console.log("Interim transcript:", latestInterim);
-        console.log("Final transcript so far:", finalTranscript);
-      };
-      
-      recognition.onerror = function(event) {
-        console.error("Speech recognition error:", event.error);
-      };
-      
-      recognition.onend = function() {
-        console.log("Speech recognition ended.");
-        isRecognizing = false;
-        let transcriptToSend = finalTranscript || latestInterim;
-        console.log("Transcript to send:", transcriptToSend);
-        if (transcriptToSend) {
-          sendMessage(transcriptToSend);
-        }
-        finalTranscript = "";
-        latestInterim = "";
-      };
-      
-      document.getElementById("recordButtonUser").addEventListener("click", function() {
-        if (recognition) {
-          if (isRecognizing) {
-            console.log("Stopping recording...");
-            recognition.stop();
-          } else {
-            console.log("Starting recording...");
-            recognition.start();
+        };
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          audioChunks = []; // reset for next recording
+          
+          // Send the audio blob to the Google Speech endpoint.
+          const formData = new FormData();
+          formData.append("audio", audioBlob, "recording.wav");
+          
+          try {
+            const response = await fetch("/api/google_speech", {
+              method: "POST",
+              body: formData
+            });
+            const result = await response.json();
+            console.log("Transcription result:", result);
+            if(result.transcript) {
+              sendMessage(result.transcript);
+            } else {
+              console.error("No transcript received.");
+            }
+          } catch (err) {
+            console.error("Error sending audio to Google Speech API:", err);
           }
-        }
-      });
+        };
+      } catch (err) {
+        console.error("Error initializing MediaRecorder:", err);
+      }
     }
+    initMediaRecorder();
+    
+    // --- Record Button Event Listener using MediaRecorder ---
+    document.getElementById("recordButtonUser").addEventListener("click", function() {
+      if (mediaRecorder) {
+        if (mediaRecorder.state === "recording") {
+          console.log("Stopping recording...");
+          mediaRecorder.stop();
+        } else {
+          console.log("Starting recording...");
+          audioChunks = [];
+          mediaRecorder.start();
+        }
+      }
+    });
+    
+    // --- (Old Speech Recognition Code Removed) ---
+    // The previous code that used webkitSpeechRecognition / SpeechRecognition is now removed
+    // in favor of the MediaRecorder approach.
     
     // --- Event Listener for the Question Button ---
     document.getElementById("questionButtonUser").addEventListener("click", function() {

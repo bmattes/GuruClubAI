@@ -5,6 +5,7 @@ import uuid
 import datetime
 import openai
 import requests
+from google.cloud import speech
 
 from flask import Flask, request, jsonify, render_template
 from openai import OpenAIError
@@ -203,7 +204,7 @@ def generate_user_profile(conversation_history, existing_profile=None):
         return {}
 
 # ------------------------------
-# New: Insight Route
+# Routes
 # ------------------------------
 @app.route("/api/insight", methods=["POST"])
 def insight():
@@ -227,9 +228,6 @@ def insight():
         # For agents, just return success.
         return jsonify({"status": "success", "receiver": receiver, "insights": None})
 
-# ------------------------------
-# Routes
-# ------------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -463,6 +461,39 @@ def tts():
     except Exception as e:
         print(f"{datetime.datetime.now()} - TTS Exception: {e}")
         return jsonify({"error": str(e)}), 500
+
+from google.cloud import speech
+
+@app.route("/api/google_speech", methods=["POST"])
+def google_speech():
+    # Ensure an audio file was provided.
+    if 'audio' not in request.files:
+        return jsonify({"error": "No audio file provided"}), 400
+    
+    audio_file = request.files["audio"]
+    audio_content = audio_file.read()
+
+    # Instantiate a client.
+    client = speech.SpeechClient()
+
+    # Configure recognition parameters to match your audio file.
+    # Here we assume the MediaRecorder produces WEBM_OPUS audio at 48000 Hz.
+    config = speech.RecognitionConfig(
+        encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
+        sample_rate_hertz=48000,
+        language_code="en-US",
+        use_enhanced=True,
+        model="phone_call"  # You can change this model as needed.
+    )
+    audio_data = speech.RecognitionAudio(content=audio_content)
+
+    try:
+        response = client.recognize(config=config, audio=audio_data)
+        transcript = " ".join(result.alternatives[0].transcript for result in response.results)
+        return jsonify({"transcript": transcript})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     with app.app_context():
