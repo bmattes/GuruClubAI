@@ -516,16 +516,27 @@
     
     // --- Record Button Event Listener (MediaRecorder) ---
     document.getElementById("recordButtonUser").addEventListener("click", async function() {
+      // If the MediaRecorder is not initialized yet, do so now.
       if (!mediaRecorder) {
         await initMediaRecorder();
       }
+      
+      // Reference to the Record button element.
+      const recordBtn = this;
+      
       if (mediaRecorder.state === "recording") {
         console.log("Stopping recording...");
         mediaRecorder.stop();
+        // Immediately update the button UI to reflect that recording has stopped.
+        recordBtn.textContent = "Record";
+        recordBtn.style.backgroundColor = "var(--accent-red)";
       } else {
         console.log("Starting recording...");
-        audioChunks = [];
+        audioChunks = []; // Clear any previous audio chunks.
         mediaRecorder.start();
+        // Update the button UI to show that recording is active.
+        recordBtn.textContent = "Stop";
+        recordBtn.style.backgroundColor = "#c0392b"; // A slightly darker red, for example.
       }
     });
     
