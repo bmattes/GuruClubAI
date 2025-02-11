@@ -462,15 +462,18 @@
     // --- MediaRecorder Setup for Google Cloud Speech-to-Text ---
     let mediaRecorder;
     let audioChunks = [];
+    let mediaStream;  // New global variable for the stream
+
     async function initMediaRecorder() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Request the media stream (this must be triggered by a user gesture on iOS)
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         let options = { mimeType: 'audio/webm;codecs=opus' };
         if (!MediaRecorder.isTypeSupported(options.mimeType)) {
           console.log(options.mimeType, "not supported. Falling back to 'audio/mp4'.");
           options = { mimeType: 'audio/mp4' };
         }
-        mediaRecorder = new MediaRecorder(stream, options);
+        mediaRecorder = new MediaRecorder(mediaStream, options);
         console.log("Using MediaRecorder MIME type:", mediaRecorder.mimeType);
         
         mediaRecorder.ondataavailable = event => {
@@ -491,13 +494,17 @@
             });
             const result = await response.json();
             console.log("Transcription result:", result);
-            if(result.transcript) {
+            if (result.transcript) {
               sendMessage(result.transcript);
             } else {
               console.error("No transcript received.");
             }
           } catch (err) {
             console.error("Error sending audio to Google Speech API:", err);
+          }
+          // --- Stop all tracks to release the microphone ---
+          if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
           }
           // Reinitialize the MediaRecorder so a new recording can start.
           initMediaRecorder();
