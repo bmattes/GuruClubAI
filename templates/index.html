@@ -482,6 +482,7 @@
             audioChunks.push(event.data);
           }
         };
+        
         mediaRecorder.onstop = async () => {
           const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
           audioChunks = [];
@@ -494,7 +495,7 @@
             });
             const result = await response.json();
             console.log("Transcription result:", result);
-            if (result.transcript) {
+            if(result.transcript) {
               sendMessage(result.transcript);
             } else {
               console.error("No transcript received.");
@@ -505,6 +506,10 @@
           // Reinitialize the MediaRecorder so a new recording can start.
           initMediaRecorder();
         };
+      } catch (err) {
+        console.error("Error initializing MediaRecorder:", err);
+      }
+    }
     
     // --- Record Button Event Listener (MediaRecorder) ---
     document.getElementById("recordButtonUser").addEventListener("click", function() {
