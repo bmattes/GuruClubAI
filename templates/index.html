@@ -49,13 +49,24 @@
     }
     .avatar {
       background: linear-gradient(135deg, var(--primary-color), #005fa3);
-      color: #fff; font-size: 48px; text-align: center; padding: 16px;
+      color: #fff; 
+      font-size: 48px; 
+      text-align: center; 
+      padding: 16px;
     }
     .name {
-      background: #f0f0f0; font-weight: bold; text-align: center; padding: 8px; font-size: 18px;
+      background: #f0f0f0; 
+      font-weight: bold; 
+      text-align: center; 
+      padding: 8px; 
+      font-size: 18px;
     }
     .messages {
-      flex: 1; padding: 16px; overflow-y: auto; font-size: 16px; text-align: center;
+      flex: 1; 
+      padding: 16px; 
+      overflow-y: auto; 
+      font-size: 16px; 
+      text-align: center;
     }
     /* User controls in the User chat box */
     #user-controls {
@@ -121,7 +132,6 @@
   </style>
 </head>
 <body>
-
   <!-- Intro Modal for Username -->
   <div id="introModal" style="
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -179,12 +189,12 @@
   </script>
   
   <script>
-    // --- Global Audio Player for TTS Playback & Delay Resolver ---
+    // --- Global Audio Player & Delay Resolver ---
     const audioPlayer = new Audio();
-    let delayTimer = null;           // Stores the timeout ID for the extra delay.
-    let currentDelayResolve = null;  // Stores the resolver for the extra delay promise.
+    let delayTimer = null;           // Timeout ID for extra delay.
+    let currentDelayResolve = null;  // Resolver for extra delay promise.
     
-    // --- Conversation Manager (front-end version) ---
+    // --- Conversation Manager (Front-End Version) ---
     function conversation_manager(query) {
       const agents = ["Sophia", "Rex", "Ella"];
       if (query && query.trim().length > 0) {
@@ -201,7 +211,7 @@
     }
     
     // --- Global Variables ---
-    let currentUserName = "user_1"; // Will be updated via the intro modal.
+    let currentUserName = "user_1"; // Updated via the intro modal.
     const conversationHistory = [];
     let currentAudio = null;
     let currentAudioResolve = null;
@@ -269,7 +279,6 @@
               currentAudio.currentTime = 0;
               currentAudio.src = "";
               wasSkipped = true;
-              // Immediately clear delay timer and resolve the extra delay.
               if (delayTimer !== null) {
                 clearTimeout(delayTimer);
                 delayTimer = null;
@@ -278,7 +287,6 @@
                 currentDelayResolve();
                 currentDelayResolve = null;
               }
-              // Immediately resolve the playback promise.
               if (currentAudioResolve) {
                 currentAudioResolve();
                 currentAudioResolve = null;
@@ -296,13 +304,9 @@
     
     // --- TTS Playback with Global Audio Player and Debug Delay ---
     async function playAudioForAgent(replyObj) {
-      // Extract sentences from the full reply.
       let sentences = replyObj.content.match(/[^\.!\?]+[\.!\?]+/g);
-      if (!sentences) {
-        sentences = [replyObj.content];
-      }
+      if (!sentences) { sentences = [replyObj.content]; }
       const firstSentence = sentences[0].trim();
-      // Calculate extra delay: 2 seconds per sentence.
       const extraDelay = sentences.length * 2000;
       const voice_id = agentVoices[replyObj.name] || "default_voice_id";
       console.log("Calling /api/tts for", replyObj.name, "with text:", firstSentence, "and voice_id:", voice_id);
@@ -321,13 +325,11 @@
         console.log("Received blob for", replyObj.name, "with size:", blob.size);
         const audioUrl = URL.createObjectURL(blob);
         
-        // Set up the global audioPlayer.
         audioPlayer.src = audioUrl;
         audioPlayer.load();
         currentAudio = audioPlayer;
         currentAgentName = replyObj.name;
         
-        // Create a promise that resolves when the audio ends naturally or when skipped.
         const audioPromise = new Promise((resolve) => {
           function onEnded() {
             console.log("Audio playback ended for", replyObj.name);
@@ -335,7 +337,6 @@
             resolve();
           }
           audioPlayer.addEventListener("ended", onEnded);
-          // Store a resolver that the skip handler will call.
           currentAudioResolve = () => {
             audioPlayer.removeEventListener("ended", onEnded);
             console.log("Audio skipped for", replyObj.name);
@@ -343,7 +344,6 @@
           };
         });
         
-        // Start playing the audio.
         const playResult = audioPlayer.play();
         if (playResult !== undefined) {
           playResult.catch(error => {
@@ -351,7 +351,6 @@
           });
         }
         
-        // Create a delay promise that waits for the extra debug delay.
         const delayPromise = new Promise((resolve) => {
           delayTimer = setTimeout(() => {
             console.log("Extra debug delay completed for", replyObj.name);
@@ -360,10 +359,10 @@
           currentDelayResolve = resolve;
         });
         
-        // Wait until both the audio (or its skip) and the extra delay complete.
-        await Promise.all([audioPromise, delayPromise]);
+        // Wait sequentially: first let the audio (or skip) finish, then wait for the delay.
+        await audioPromise;
+        await delayPromise;
         
-        // Cleanup: clear timers and reset globals.
         wasSkipped = false;
         if (delayTimer !== null) {
           clearTimeout(delayTimer);
@@ -381,7 +380,6 @@
     
     // --- Sequential Agent Reply Handling ---
     async function handleAgentResponses(force_question = false) {
-      // Get the most recent user message from conversationHistory.
       let lastUserMessage = "";
       for (let i = conversationHistory.length - 1; i >= 0; i--) {
         if (conversationHistory[i].role === "user") {
@@ -410,10 +408,8 @@
           const data = await response.json();
           const reply = data.reply;
           conversationHistory.push({ role: "assistant", name: agent, content: reply });
-          // Immediately update the UI: display full reply text and highlight agent's chat box.
           setParticipantMessage(agent, reply);
           document.getElementById("participant-" + agent).classList.add("highlight");
-          // Play only the first sentence via TTS, then wait extra delay.
           await playAudioForAgent({ name: agent, content: reply });
           clearAllHighlights();
         } catch (error) {
@@ -512,16 +508,17 @@
     }
     
     // --- Record Button Event Listener (MediaRecorder) ---
-    document.getElementById("recordButtonUser").addEventListener("click", function() {
-      if (mediaRecorder) {
-        if (mediaRecorder.state === "recording") {
-          console.log("Stopping recording...");
-          mediaRecorder.stop();
-        } else {
-          console.log("Starting recording...");
-          audioChunks = [];
-          mediaRecorder.start();
-        }
+    document.getElementById("recordButtonUser").addEventListener("click", async function() {
+      if (!mediaRecorder) {
+        await initMediaRecorder();
+      }
+      if (mediaRecorder.state === "recording") {
+        console.log("Stopping recording...");
+        mediaRecorder.stop();
+      } else {
+        console.log("Starting recording...");
+        audioChunks = [];
+        mediaRecorder.start();
       }
     });
     
