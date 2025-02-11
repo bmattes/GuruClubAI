@@ -5,7 +5,9 @@ import uuid
 import datetime
 import openai
 import requests
+import json
 
+from google.oauth2 import service_account
 from google.cloud import speech
 from flask import Flask, request, jsonify, render_template
 from openai import OpenAIError
@@ -476,27 +478,32 @@ def tts():
 
 @app.route("/api/google_speech", methods=["POST"])
 def google_speech():
-    # Ensure an audio file was provided.
-    if 'audio' not in request.files:
+    # Make sure the audio file is available, etc.
+    if "audio" not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
-    
+
     audio_file = request.files["audio"]
     audio_content = audio_file.read()
 
-    # Instantiate a client.
-    client = speech.SpeechClient()
+    # Load credentials from the environment variable.
+    if "GOOGLE_CREDENTIALS_JSON" in os.environ:
+        credentials_info = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
+        credentials = service_account.Credentials.from_service_account_info(credentials_info)
+    else:
+        # Optionally, fall back to using GOOGLE_APPLICATION_CREDENTIALS if that is set.
+        credentials, _ = google.auth.default()
 
-    # Configure recognition parameters to match your audio file.
-    # Here we assume the MediaRecorder produces WEBM_OPUS audio at 48000 Hz.
+    client = speech.SpeechClient(credentials=credentials)
+
     config = speech.RecognitionConfig(
         encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
         sample_rate_hertz=48000,
         language_code="en-US",
         use_enhanced=True,
-        model="phone_call"  # You can change this model as needed.
+        model="phone_call"
     )
     audio_data = speech.RecognitionAudio(content=audio_content)
-
+    
     try:
         response = client.recognize(config=config, audio=audio_data)
         transcript = " ".join(result.alternatives[0].transcript for result in response.results)
