@@ -175,7 +175,7 @@
   
   <!-- Pass DEBUG_TTS from Flask to the client -->
   <script>
-    const DEBUG_MODE = {{ debug_tts|tojson }};
+    const DEBUG_MODE = {{ debug_tts|default("false")|tojson }};
   </script>
   
   <script>
