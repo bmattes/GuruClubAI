@@ -460,13 +460,13 @@
     });
     
     // --- MediaRecorder Setup for Google Cloud Speech-to-Text ---
-    let mediaRecorder;
+    let mediaRecorder = null;
     let audioChunks = [];
-    let mediaStream;  // New global variable for the stream
+    let mediaStream = null;
 
     async function initMediaRecorder() {
       try {
-        // Request the media stream (this must be triggered by a user gesture on iOS)
+        // Request a fresh media stream (this must be triggered by a user gesture on iOS)
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         let options = { mimeType: 'audio/webm;codecs=opus' };
         if (!MediaRecorder.isTypeSupported(options.mimeType)) {
@@ -475,18 +475,20 @@
         }
         mediaRecorder = new MediaRecorder(mediaStream, options);
         console.log("Using MediaRecorder MIME type:", mediaRecorder.mimeType);
-        
+
         mediaRecorder.ondataavailable = event => {
           if (event.data.size > 0) {
             audioChunks.push(event.data);
           }
         };
-        
+
         mediaRecorder.onstop = async () => {
+          // Create a Blob from the recorded data
           const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
           audioChunks = [];
           const formData = new FormData();
           formData.append("audio", audioBlob, "recording." + (mediaRecorder.mimeType.includes("webm") ? "webm" : "mp4"));
+
           try {
             const response = await fetch("/api/google_speech", {
               method: "POST",
@@ -502,12 +504,15 @@
           } catch (err) {
             console.error("Error sending audio to Google Speech API:", err);
           }
-          // --- Stop all tracks to release the microphone ---
+
+          // **Stop all tracks to fully release the microphone on iOS**
           if (mediaStream) {
             mediaStream.getTracks().forEach(track => track.stop());
           }
-          // Reinitialize the MediaRecorder so a new recording can start.
-          initMediaRecorder();
+
+          // Reset globals so a new recording session can be initialized.
+          mediaRecorder = null;
+          mediaStream = null;
         };
       } catch (err) {
         console.error("Error initializing MediaRecorder:", err);
@@ -516,27 +521,25 @@
     
     // --- Record Button Event Listener (MediaRecorder) ---
     document.getElementById("recordButtonUser").addEventListener("click", async function() {
-      // If the MediaRecorder is not initialized yet, do so now.
+      const recordBtn = this;
+      // If the recorder isn't initialized (or has been reset), initialize it now.
       if (!mediaRecorder) {
         await initMediaRecorder();
       }
-      
-      // Reference to the Record button element.
-      const recordBtn = this;
-      
+      // Toggle recording.
       if (mediaRecorder.state === "recording") {
         console.log("Stopping recording...");
         mediaRecorder.stop();
-        // Immediately update the button UI to reflect that recording has stopped.
+        // Update button UI to show that recording has stopped.
         recordBtn.textContent = "Record";
         recordBtn.style.backgroundColor = "var(--accent-red)";
       } else {
         console.log("Starting recording...");
-        audioChunks = []; // Clear any previous audio chunks.
+        audioChunks = []; // Clear any previous data.
         mediaRecorder.start();
-        // Update the button UI to show that recording is active.
+        // Update button UI to show that recording is active.
         recordBtn.textContent = "Stop";
-        recordBtn.style.backgroundColor = "#c0392b"; // A slightly darker red, for example.
+        recordBtn.style.backgroundColor = "#c0392b";
       }
     });
     
