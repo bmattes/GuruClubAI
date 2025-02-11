@@ -5,8 +5,8 @@ import uuid
 import datetime
 import openai
 import requests
-from google.cloud import speech
 
+from google.cloud import speech
 from flask import Flask, request, jsonify, render_template
 from openai import OpenAIError
 from dotenv import load_dotenv
@@ -108,6 +108,7 @@ def generate_agent_reply(agent, conversation_history, force_question=False):
             "If you find that a previous response was insightful and directly answered a question in a valuable way, append the marker `[+Insight for: <name>]` at the end of your reply, where `<name>` is the name of the person who gave that insightful answer. Include this marker only when you are certain the response merits a +1. "
             "Please be specific whenever possible - use specific names of characters, chapters, events and themes that clearly demonstrate your understanding of the source material. "
             "Do not rephrase a question already asked by another Agent or User. "
+            "If another Agent has already asked a question in this Round, don't ask another until the User has asked one. "
         )
         if random.random() < 0.1:
             refined_instructions += "\nAdditionally, if appropriate, ask a brief follow-up question directed at another participant or the user."
@@ -142,22 +143,6 @@ def generate_agent_reply(agent, conversation_history, force_question=False):
     
     print(f"{datetime.datetime.now()} - Agent {agent} reply (first 50 chars): {reply[:50]}...")
     return reply
-
-@app.route("/api/agent_reply", methods=["POST"])
-def agent_reply():
-    """
-    Generate a reply for a single agent based on the current conversation history.
-    This endpoint enables sequential agent responses so that each agent's reply
-    is generated after the conversation history has been updated with previous replies.
-    """
-    data = request.get_json()
-    user_id = data.get("user_id", "user_1")
-    conversation_history = data.get("conversation_history", [])
-    agent = data.get("agent")
-    force_question = data.get("force_question", False)
-    
-    reply_text = generate_agent_reply(agent, conversation_history, force_question)
-    return jsonify({"reply": reply_text})
 
 def generate_user_profile(conversation_history, existing_profile=None):
     """
@@ -206,6 +191,22 @@ def generate_user_profile(conversation_history, existing_profile=None):
 # ------------------------------
 # Routes
 # ------------------------------
+@app.route("/api/agent_reply", methods=["POST"])
+def agent_reply():
+    """
+    Generate a reply for a single agent based on the current conversation history.
+    This endpoint enables sequential agent responses so that each agent's reply
+    is generated after the conversation history has been updated with previous replies.
+    """
+    data = request.get_json()
+    user_id = data.get("user_id", "user_1")
+    conversation_history = data.get("conversation_history", [])
+    agent = data.get("agent")
+    force_question = data.get("force_question", False)
+    
+    reply_text = generate_agent_reply(agent, conversation_history, force_question)
+    return jsonify({"reply": reply_text})
+
 @app.route("/api/insight", methods=["POST"])
 def insight():
     data = request.get_json()
@@ -230,7 +231,8 @@ def insight():
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    debug_tts = os.getenv("DEBUG_TTS", "false").lower() == "true"
+    return render_template("index.html", debug_tts=debug_tts)
 
 @app.route("/api/update_profile", methods=["POST"])
 def update_profile():
@@ -418,30 +420,36 @@ def tts():
     
     print("=== /api/tts START ===")
     print(f"{datetime.datetime.now()} - Voice ID: {voice_id}")
-    print(f"{datetime.datetime.now()} - Text length: {len(text)}")
+    print(f"{datetime.datetime.now()} - Original Text length: {len(text)}")
     
     if not text:
         return jsonify({"error": "No text provided"}), 400
     
-    headers = {
-        "xi-api-key": os.getenv("ELEVENLABS_API_KEY"),
-        "Content-Type": "application/json"
-    }
-    
-    voice_settings = {
-        "stability": 0.5,
-        "similarity_boost": 0.75
-    }
-    
-    if os.getenv("DEBUG_TTS", "false").lower() == "true":
+    # If in DEBUG_TTS mode, modify the text for TTS to only include the first sentence.
+    let_debug = os.getenv("DEBUG_TTS", "false").lower() == "true"
+    if let_debug:
+        import re
+        # Split on period followed by a space. If no period is found, this returns the whole text.
+        first_sentence = re.split(r'\. ', text, maxsplit=1)[0]
+        # If the first sentence does not already end with a period, append one.
+        if not first_sentence.endswith('.'):
+            first_sentence += '.'
+        text_for_tts = first_sentence
+        print(f"{datetime.datetime.now()} - DEBUG_TTS mode enabled: using first sentence for TTS: {text_for_tts}")
+        # Use lower quality voice parameters in debug mode.
         voice_settings = {
             "stability": 0.1,
             "similarity_boost": 0.1
         }
-        print("DEBUG_TTS mode enabled: using lower quality voice parameters.")
+    else:
+        text_for_tts = text
+        voice_settings = {
+            "stability": 0.5,
+            "similarity_boost": 0.75
+        }
     
     payload = {
-        "text": text,
+        "text": text_for_tts,
         "model_id": "eleven_monolingual_v1",
         "voice_settings": voice_settings
     }
@@ -449,20 +457,22 @@ def tts():
     try:
         response = requests.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
-            headers=headers,
+            headers={
+                "xi-api-key": os.getenv("ELEVENLABS_API_KEY"),
+                "Content-Type": "application/json"
+            },
             json=payload
         )
         if response.status_code != 200:
             print(f"{datetime.datetime.now()} - TTS API error: {response.status_code} {response.text}")
             return jsonify({"error": "ElevenLabs TTS error", "details": response.text}), response.status_code
+        
         print(f"{datetime.datetime.now()} - TTS API call succeeded, response size: {len(response.content)}")
         print("=== /api/tts END ===")
         return response.content, 200, {"Content-Type": "audio/mpeg"}
     except Exception as e:
         print(f"{datetime.datetime.now()} - TTS Exception: {e}")
         return jsonify({"error": str(e)}), 500
-
-from google.cloud import speech
 
 @app.route("/api/google_speech", methods=["POST"])
 def google_speech():

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guru Club</title>
   <style>
     :root {
       --primary-color: #0070c9;
@@ -14,22 +15,14 @@
       --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       --transition-duration: 0.3s;
     }
-    
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       font-family: var(--font-family);
       background-color: var(--background-color);
       color: #333;
     }
-    
-    /* 2x2 grid that fills the viewport */
+    /* 2x2 grid for chat boxes */
     .meeting-container {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -37,8 +30,6 @@
       width: 100vw;
       height: 100vh;
     }
-    
-    /* Chat box (participant) styling */
     .participant {
       background-color: #fff;
       border: 1px solid var(--border-color);
@@ -51,39 +42,22 @@
       transition: box-shadow var(--transition-duration);
       position: relative;
     }
-    .participant:hover {
-      box-shadow: 0 6px 12px var(--shadow-color);
-    }
+    .participant:hover { box-shadow: 0 6px 12px var(--shadow-color); }
     .participant.highlight {
       border-color: var(--highlight-color);
       box-shadow: 0 0 10px var(--highlight-color);
     }
-    
     .avatar {
       background: linear-gradient(135deg, var(--primary-color), #005fa3);
-      color: #fff;
-      font-size: 48px;
-      text-align: center;
-      padding: 16px;
+      color: #fff; font-size: 48px; text-align: center; padding: 16px;
     }
-    
     .name {
-      background: #f0f0f0;
-      font-weight: bold;
-      text-align: center;
-      padding: 8px;
-      font-size: 18px;
+      background: #f0f0f0; font-weight: bold; text-align: center; padding: 8px; font-size: 18px;
     }
-    
     .messages {
-      flex: 1;
-      padding: 16px;
-      overflow-y: auto;
-      font-size: 16px;
-      text-align: center;
+      flex: 1; padding: 16px; overflow-y: auto; font-size: 16px; text-align: center;
     }
-    
-    /* Integrated User Controls (in the User chat box) */
+    /* User controls in the User chat box */
     #user-controls {
       padding: 8px;
       background-color: #fafafa;
@@ -104,7 +78,6 @@
       outline: none;
       border-color: var(--primary-color);
     }
-    /* Button row for Raise Hand, Record, and Question */
     #user-button-row {
       display: flex;
       justify-content: center;
@@ -125,10 +98,8 @@
       flex: none;
     }
     #handButtonUser:hover,
-    #questionButtonUser:hover {
-      background: #ddd;
-    }
-    /* Large red Record button in the center */
+    #questionButtonUser:hover { background: #ddd; }
+    /* Large red Record button */
     #recordButtonUser {
       background-color: var(--accent-red);
       color: #fff;
@@ -141,42 +112,21 @@
       cursor: pointer;
       flex: none;
     }
-    #recordButtonUser:hover {
-      background-color: #c0392b;
-    }
-    
-    /* Hide any old bottom controls */
-    .chat-controls {
-      display: none;
-    }
-    
+    #recordButtonUser:hover { background-color: #c0392b; }
+    .chat-controls { display: none; }
     /* Optional scrollbar styling for messages */
-    .messages::-webkit-scrollbar {
-      width: 6px;
-    }
-    .messages::-webkit-scrollbar-track {
-      background: #f0f0f0;
-    }
-    .messages::-webkit-scrollbar-thumb {
-      background: #ccc;
-      border-radius: 3px;
-    }
+    .messages::-webkit-scrollbar { width: 6px; }
+    .messages::-webkit-scrollbar-track { background: #f0f0f0; }
+    .messages::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
   </style>
 </head>
 <body>
 
-  <!-- Intro Modal Overlay for Username -->
+  <!-- Intro Modal for Username -->
   <div id="introModal" style="
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(255,255,255,0.95);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
       z-index: 10000;
   ">
     <h2 style="font-size: 28px; margin-bottom: 20px;">Welcome to Guru Club</h2>
@@ -191,7 +141,6 @@
       <div class="avatar" id="avatar-user">You</div>
       <div class="name" id="name-user">You</div>
       <div class="messages" id="messages-user"></div>
-      <!-- Integrated user controls: text input and button row -->
       <div id="user-controls">
         <input type="text" id="userInput" placeholder="Type your message..." />
         <div id="user-button-row">
@@ -224,16 +173,23 @@
     </div>
   </div>
   
+  <!-- Pass DEBUG_TTS from Flask to the client -->
   <script>
-    // --- Global Audio Player for TTS Playback ---
+    const DEBUG_MODE = {{ debug_tts|tojson }};
+  </script>
+  
+  <script>
+    // --- Global Audio Player for TTS Playback & Delay Resolver ---
     const audioPlayer = new Audio();
-
-    // --- New: Front-End Conversation Manager (same as before) ---
+    let delayTimer = null;           // Stores the timeout ID for the extra delay.
+    let currentDelayResolve = null;  // Stores the resolver for the extra delay promise.
+    
+    // --- Conversation Manager (front-end version) ---
     function conversation_manager(query) {
-      let agents = ["Sophia", "Rex", "Ella"];
+      const agents = ["Sophia", "Rex", "Ella"];
       if (query && query.trim().length > 0) {
-        let lowered = query.toLowerCase();
-        let addressed = [];
+        const lowered = query.toLowerCase();
+        const addressed = [];
         agents.forEach(agent => {
           if (lowered.indexOf(agent.toLowerCase()) !== -1) {
             addressed.push(agent);
@@ -244,22 +200,20 @@
       return agents;
     }
     
-    // --- Global Variables & Element References ---
-    let currentUserName = "user_1"; // We'll ask for the username every time.
+    // --- Global Variables ---
+    let currentUserName = "user_1"; // Will be updated via the intro modal.
     const conversationHistory = [];
-    
-    // Global variables for TTS skip functionality.
     let currentAudio = null;
     let currentAudioResolve = null;
     let currentAgentName = null;
-    
-    // Global flag for raised hand.
     let handRaised = false;
+    let wasSkipped = false;
     
     // --- Helper Functions ---
     function clearAllHighlights() {
       ["user", "Sophia", "Rex", "Ella"].forEach(participant => {
-        document.getElementById("participant-" + (participant === "user" ? "user" : participant)).classList.remove("highlight");
+        document.getElementById("participant-" + (participant === "user" ? "user" : participant))
+          .classList.remove("highlight");
       });
     }
     
@@ -275,7 +229,7 @@
           div.textContent = content;
         }
         pane.appendChild(div);
-        // Append a small Insight button.
+        // Append a small insight button.
         const insightButton = document.createElement("button");
         insightButton.textContent = "+1";
         insightButton.style.fontSize = "10px";
@@ -302,6 +256,7 @@
       "Ella": "XrExE9yKIg1WjnnlVkGX"
     };
     
+    // --- Skip Event Listener ---
     function setupSkipEventListeners() {
       const agents = ["Sophia", "Rex", "Ella"];
       agents.forEach(agent => {
@@ -311,7 +266,19 @@
             if (currentAudio && currentAgentName === agent) {
               console.log("Skip triggered for", agent);
               currentAudio.pause();
-              currentAudio.currentTime = currentAudio.duration;
+              currentAudio.currentTime = 0;
+              currentAudio.src = "";
+              wasSkipped = true;
+              // Immediately clear delay timer and resolve the extra delay.
+              if (delayTimer !== null) {
+                clearTimeout(delayTimer);
+                delayTimer = null;
+              }
+              if (currentDelayResolve) {
+                currentDelayResolve();
+                currentDelayResolve = null;
+              }
+              // Immediately resolve the playback promise.
               if (currentAudioResolve) {
                 currentAudioResolve();
                 currentAudioResolve = null;
@@ -327,52 +294,92 @@
     }
     setupSkipEventListeners();
     
-    // --- TTS Playback with Global Audio Element ---
+    // --- TTS Playback with Global Audio Player and Debug Delay ---
     async function playAudioForAgent(replyObj) {
-      const cleanReply = replyObj.content.replace(/^\s*\[TO:[^\]]+\]\s*/, "");
+      // Extract sentences from the full reply.
+      let sentences = replyObj.content.match(/[^\.!\?]+[\.!\?]+/g);
+      if (!sentences) {
+        sentences = [replyObj.content];
+      }
+      const firstSentence = sentences[0].trim();
+      // Calculate extra delay: 2 seconds per sentence.
+      const extraDelay = sentences.length * 2000;
       const voice_id = agentVoices[replyObj.name] || "default_voice_id";
-      console.log("Calling /api/tts for", replyObj.name, "with text:", cleanReply, "and voice_id:", voice_id);
+      console.log("Calling /api/tts for", replyObj.name, "with text:", firstSentence, "and voice_id:", voice_id);
+      
       try {
         const response = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: cleanReply, voice_id: voice_id })
+          body: JSON.stringify({ text: firstSentence, voice_id: voice_id })
         });
-        if (response.ok) {
-          const blob = await response.blob();
-          console.log("Received blob for", replyObj.name, "with size:", blob.size);
-          const audioUrl = URL.createObjectURL(blob);
-          
-          // Use the global audioPlayer.
-          audioPlayer.src = audioUrl;
-          currentAudio = audioPlayer;
-          currentAgentName = replyObj.name;
-          
-          const playPromise = new Promise((resolve) => {
-            audioPlayer.onended = () => {
-              console.log("Finished playing audio for", replyObj.name);
-              clearAllHighlights();
-              clearMessageForParticipant(replyObj.name);
-              resolve();
-            };
-          });
-          
-          await audioPlayer.play().catch(error => {
-            console.error("Audio.play() rejected for", replyObj.name, error);
-          });
-          await playPromise;
-          currentAudio = null;
-          currentAgentName = null;
-          return;
-        } else {
+        if (!response.ok) {
           console.error("TTS API error for", replyObj.name, response.statusText);
+          return;
         }
+        const blob = await response.blob();
+        console.log("Received blob for", replyObj.name, "with size:", blob.size);
+        const audioUrl = URL.createObjectURL(blob);
+        
+        // Set up the global audioPlayer.
+        audioPlayer.src = audioUrl;
+        audioPlayer.load();
+        currentAudio = audioPlayer;
+        currentAgentName = replyObj.name;
+        
+        // Create a promise that resolves when the audio ends naturally or when skipped.
+        const audioPromise = new Promise((resolve) => {
+          function onEnded() {
+            console.log("Audio playback ended for", replyObj.name);
+            audioPlayer.removeEventListener("ended", onEnded);
+            resolve();
+          }
+          audioPlayer.addEventListener("ended", onEnded);
+          // Store a resolver that the skip handler will call.
+          currentAudioResolve = () => {
+            audioPlayer.removeEventListener("ended", onEnded);
+            console.log("Audio skipped for", replyObj.name);
+            resolve();
+          };
+        });
+        
+        // Start playing the audio.
+        const playResult = audioPlayer.play();
+        if (playResult !== undefined) {
+          playResult.catch(error => {
+            console.error("Audio.play() error for", replyObj.name, error);
+          });
+        }
+        
+        // Create a delay promise that waits for the extra debug delay.
+        const delayPromise = new Promise((resolve) => {
+          delayTimer = setTimeout(() => {
+            console.log("Extra debug delay completed for", replyObj.name);
+            resolve();
+          }, extraDelay);
+          currentDelayResolve = resolve;
+        });
+        
+        // Wait until both the audio (or its skip) and the extra delay complete.
+        await Promise.all([audioPromise, delayPromise]);
+        
+        // Cleanup: clear timers and reset globals.
+        wasSkipped = false;
+        if (delayTimer !== null) {
+          clearTimeout(delayTimer);
+          delayTimer = null;
+        }
+        currentDelayResolve = null;
+        currentAudio = null;
+        currentAgentName = null;
+        currentAudioResolve = null;
+        return;
       } catch (error) {
         console.error("Error in TTS call for", replyObj.name, error);
       }
     }
     
-    // --- New: Sequential Agent Reply Handling ---
+    // --- Sequential Agent Reply Handling ---
     async function handleAgentResponses(force_question = false) {
       // Get the most recent user message from conversationHistory.
       let lastUserMessage = "";
@@ -382,11 +389,9 @@
           break;
         }
       }
-      
-      // Determine agent order based on the last user message.
       let agentsToReply = force_question 
-          ? [randomChoice(["Sophia", "Rex", "Ella"])]
-          : conversation_manager(lastUserMessage);
+        ? [randomChoice(["Sophia", "Rex", "Ella"])]
+        : conversation_manager(lastUserMessage);
       
       for (let i = 0; i < agentsToReply.length; i++) {
         const agent = agentsToReply[i];
@@ -405,8 +410,10 @@
           const data = await response.json();
           const reply = data.reply;
           conversationHistory.push({ role: "assistant", name: agent, content: reply });
+          // Immediately update the UI: display full reply text and highlight agent's chat box.
           setParticipantMessage(agent, reply);
           document.getElementById("participant-" + agent).classList.add("highlight");
+          // Play only the first sentence via TTS, then wait extra delay.
           await playAudioForAgent({ name: agent, content: reply });
           clearAllHighlights();
         } catch (error) {
@@ -415,7 +422,7 @@
       }
     }
     
-    // Helper to choose a random element.
+    // --- Helper: Random Choice ---
     function randomChoice(arr) {
       return arr[Math.floor(Math.random() * arr.length)];
     }
@@ -444,7 +451,7 @@
       }
     }
     
-    // --- Event Listener for User Input ---
+    // --- Event Listener for User Text Input ---
     document.getElementById("userInput").addEventListener("keydown", function(e) {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -458,25 +465,28 @@
     
     // --- MediaRecorder Setup for Google Cloud Speech-to-Text ---
     let mediaRecorder;
-
     let audioChunks = [];
     async function initMediaRecorder() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        let options = { mimeType: 'audio/webm;codecs=opus' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          console.log(options.mimeType, "not supported. Falling back to 'audio/mp4'.");
+          options = { mimeType: 'audio/mp4' };
+        }
+        mediaRecorder = new MediaRecorder(stream, options);
+        console.log("Using MediaRecorder MIME type:", mediaRecorder.mimeType);
+        
         mediaRecorder.ondataavailable = event => {
           if (event.data.size > 0) {
             audioChunks.push(event.data);
           }
         };
         mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-          audioChunks = []; // reset for next recording
-          
-          // Send the audio blob to the Google Speech endpoint.
+          const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+          audioChunks = [];
           const formData = new FormData();
-          formData.append("audio", audioBlob, "recording.wav");
-          
+          formData.append("audio", audioBlob, "recording." + (mediaRecorder.mimeType.includes("webm") ? "webm" : "mp4"));
           try {
             const response = await fetch("/api/google_speech", {
               method: "POST",
@@ -499,7 +509,7 @@
     }
     initMediaRecorder();
     
-    // --- Record Button Event Listener using MediaRecorder ---
+    // --- Record Button Event Listener (MediaRecorder) ---
     document.getElementById("recordButtonUser").addEventListener("click", function() {
       if (mediaRecorder) {
         if (mediaRecorder.state === "recording") {
@@ -513,17 +523,12 @@
       }
     });
     
-    // --- (Old Speech Recognition Code Removed) ---
-    // The previous code that used webkitSpeechRecognition / SpeechRecognition is now removed
-    // in favor of the MediaRecorder approach.
-    
     // --- Event Listener for the Question Button ---
     document.getElementById("questionButtonUser").addEventListener("click", function() {
       console.log("Question button pressed (User box).");
       handRaised = false;
       clearAllHighlights();
       document.getElementById("participant-user").classList.add("highlight");
-      // Force a question by sending an empty message with force_question flag.
       sendMessage("", { force_question: true });
       setTimeout(() => { this.classList.remove("highlight"); }, 1000);
     });
@@ -532,7 +537,6 @@
     window.addEventListener("load", function() {
       document.getElementById("introModal").style.display = "flex";
     });
-    
     document.getElementById("introSubmitButton").addEventListener("click", function() {
       const nameInput = document.getElementById("introNameInput").value.trim();
       if (nameInput) {
@@ -543,7 +547,6 @@
         alert("Please enter a valid name.");
       }
     });
-    
     document.getElementById("introNameInput").addEventListener("keydown", function(e) {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
