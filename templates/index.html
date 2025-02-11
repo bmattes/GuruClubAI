@@ -494,7 +494,7 @@
             });
             const result = await response.json();
             console.log("Transcription result:", result);
-            if(result.transcript) {
+            if (result.transcript) {
               sendMessage(result.transcript);
             } else {
               console.error("No transcript received.");
@@ -502,12 +502,9 @@
           } catch (err) {
             console.error("Error sending audio to Google Speech API:", err);
           }
+          // Reinitialize the MediaRecorder so a new recording can start.
+          initMediaRecorder();
         };
-      } catch (err) {
-        console.error("Error initializing MediaRecorder:", err);
-      }
-    }
-    initMediaRecorder();
     
     // --- Record Button Event Listener (MediaRecorder) ---
     document.getElementById("recordButtonUser").addEventListener("click", function() {
