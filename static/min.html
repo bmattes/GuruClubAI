@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Jitsi Meet Minimal Embed</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+      }
+      #jitsi-container {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="jitsi-container"></div>
+    <!-- Load external_api.min.js from your static folder -->
+    <script src="/static/external_api.min.js"></script>
+    <script>
+      const domain = "jitsi.local";
+      const options = {
+        roomName: "TestRoom123",
+        width: "100%",
+        height: "100%",
+        parentNode: document.getElementById("jitsi-container"),
+        configOverwrite: {
+          prejoinPageEnabled: false
+        },
+        interfaceConfigOverwrite: {},
+        jwt: null,  // Disable authentication for anonymous access
+        noSSL: false // Ensure it uses HTTPS
+      };
+      const api = new JitsiMeetExternalAPI(domain, options);
+    </script>
+  </body>
+</html>

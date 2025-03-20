@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Design Test - Guru Club Meeting</title>
+  <style>
+    /* Mobile-first basic reset */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: sans-serif;
+      background-color: #f8f8f8;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    header, footer {
+      background-color: #0070c9;
+      color: #fff;
+      text-align: center;
+      padding: 10px;
+    }
+    main {
+      flex: 1;
+      padding: 10px;
+      display: grid;
+      grid-template-rows: auto auto auto;
+      gap: 10px;
+    }
+    /* Placeholder boxes */
+    .placeholder {
+      background-color: #ddd;
+      border: 1px dashed #bbb;
+      border-radius: 4px;
+      padding: 10px;
+      text-align: center;
+      font-size: 1em;
+      color: #555;
+    }
+    /* Agent selection grid */
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 10px;
+    }
+    .agent-box {
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 5px;
+    }
+    .agent-box img {
+      width: 100%;
+      height: auto;
+      display: block;
+      margin-bottom: 5px;
+      border-radius: 50%;
+    }
+    .agent-box p {
+      font-size: 0.9em;
+    }
+    /* Responsive adjustments for larger screens */
+    @media(min-width: 600px) {
+      main {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+      }
+      .meeting-section {
+        grid-column: span 2;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Guru Club Meeting - Design Test</h1>
+  </header>
+  <main>
+    <!-- Agent Selection Section -->
+    <section class="placeholder">
+      <h2>Agent Selection</h2>
+      <div class="agent-grid">
+        <!-- Placeholder for agent 1 -->
+        <div class="agent-box">
+          <img src="https://via.placeholder.com/100" alt="Agent 1" />
+          <p>Agent 1 Bio: Lorem ipsum dolor sit amet.</p>
+        </div>
+        <!-- Placeholder for agent 2 -->
+        <div class="agent-box">
+          <img src="https://via.placeholder.com/100" alt="Agent 2" />
+          <p>Agent 2 Bio: Consectetur adipiscing elit.</p>
+        </div>
+        <!-- Placeholder for agent 3 -->
+        <div class="agent-box">
+          <img src="https://via.placeholder.com/100" alt="Agent 3" />
+          <p>Agent 3 Bio: Sed do eiusmod tempor.</p>
+        </div>
+        <!-- Add more placeholder agent boxes as needed -->
+      </div>
+    </section>
+    <!-- Meeting Area Section -->
+    <section class="placeholder meeting-section">
+      <h2>Meeting Area</h2>
+      <p>This is where the video meeting (Jitsi) will be embedded.</p>
+    </section>
+    <!-- Chat Section -->
+    <section class="placeholder">
+      <h2>Chat</h2>
+      <p>Chat messages appear here.</p>
+      <input type="text" placeholder="Type your message here..." style="width: 100%; padding: 10px; margin-top: 10px;" />
+      <button style="width: 100%; padding: 10px; margin-top: 5px; background-color: #0070c9; color: #fff; border: none; border-radius: 4px;">Send</button>
+    </section>
+  </main>
+  <footer>
+    <p>&copy; 2025 Guru Club Meeting</p>
+  </footer>
+</body>
+</html>

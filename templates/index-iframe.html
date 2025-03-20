@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guru Club Meeting - Jitsi Integration</title>
+  <style>
+    /* Make the iframe fill the screen */
+    html, body, iframe {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+  <iframe src="{{ url_for('static', filename='min.html') }}"
+          allow="camera; microphone; fullscreen; display-capture">
+  </iframe>
+</body>
+</html>

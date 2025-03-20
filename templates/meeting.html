@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meeting - Guru Club Meeting</title>
+    <!-- Jitsi External API -->
+    <script src="https://localhost:8443/external_api.js"></script>
+    <!-- Socket.IO client library -->
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <style>
+      /* Mobile-first styles */
+      body {
+        margin: 0;
+        font-family: sans-serif;
+        background: #f8f8f8;
+      }
+      header {
+        background: #0070c9;
+        color: #fff;
+        text-align: center;
+        padding: 10px;
+        position: relative;
+      }
+      /* Debug link in header */
+      #debug-link {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-size: 0.9em;
+        color: #fff;
+        cursor: pointer;
+        text-decoration: underline;
+      }
+      main {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+        gap: 10px;
+        padding: 10px;
+      }
+      /* Desktop layout: Meeting & Chat on left, Agents panel on right */
+      @media (min-width: 800px) {
+        main {
+          grid-template-columns: 3fr 1fr;
+          grid-template-rows: 1fr;
+        }
+        #meeting-chat {
+          grid-column: 1 / 2;
+        }
+        #agents-panel {
+          grid-column: 2 / 3;
+        }
+      }
+      /* Meeting & Chat Section */
+      #meeting-chat {
+        display: grid;
+        grid-template-rows: 1fr auto;
+        gap: 10px;
+      }
+      #meeting-container {
+        background: #000;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        height: 50vh;
+      }
+      #chat-container {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: #fff;
+        padding: 10px;
+      }
+      #chat-log {
+        height: 20vh;
+        overflow-y: auto;
+        border-bottom: 1px solid #ccc;
+        padding: 5px;
+      }
+      #chat-input-container {
+        display: flex;
+        margin-top: 5px;
+      }
+      #chat-input {
+        flex: 1;
+        padding: 8px;
+        font-size: 16px;
+      }
+      #chat-send {
+        padding: 8px 12px;
+        background: #0070c9;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-left: 5px;
+      }
+      /* Agents Panel */
+      #agents-panel {
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 10px;
+        overflow-y: auto;
+      }
+      .agent-tile {
+        margin-bottom: 10px;
+        text-align: center;
+      }
+      .agent-tile img {
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        border: 2px solid #0070c9;
+        transition: border 0.3s, transform 0.3s;
+      }
+      @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+      }
+      .agent-tile.thinking img {
+        border-color: #ff9800;
+        border-width: 8px;
+        animation: pulse 1.5s infinite;
+      }
+      /* Modal styles for user profile */
+      #profileModal {
+        display: none; /* hidden by default */
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0,0,0,0.4); /* black with opacity */
+      }
+      #profileModalContent {
+        background-color: #fff;
+        margin: 15% auto;
+        padding: 20px;
+        border: 1px solid #ccc;
+        width: 80%;
+        max-width: 400px;
+        border-radius: 4px;
+      }
+      #profileModalContent h2 {
+        margin-top: 0;
+      }
+      #closeProfile {
+        float: right;
+        font-size: 1.2em;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Guru Club Meeting</h1>
+      <div id="debug-link">user_profile</div>
+    </header>
+    <main>
+      <!-- Meeting & Chat Section -->
+      <section id="meeting-chat">
+        <div id="meeting-container">
+          <!-- Jitsi meeting iframe will be injected here -->
+        </div>
+        <div id="chat-container">
+          <div id="chat-log"></div>
+          <div id="chat-input-container">
+            <input type="text" id="chat-input" placeholder="Type your message..." autofocus />
+            <button id="chat-send">Send</button>
+          </div>
+        </div>
+      </section>
+      <!-- Agents Panel -->
+      <aside id="agents-panel">
+        <!-- Selected agent icons will appear here -->
+      </aside>
+    </main>
+    <footer style="background:#0070c9; color:#fff; text-align:center; padding:10px;">
+      <p>&copy; 2025 Guru Club Meeting</p>
+    </footer>
+
+    <!-- Modal for User Profile -->
+    <div id="profileModal">
+      <div id="profileModalContent">
+        <span id="closeProfile">&times;</span>
+        <h2>User Profile</h2>
+        <pre id="profileData" style="white-space: pre-wrap;"></pre>
+      </div>
+    </div>
+    
+    <script>
+
+      let isAgentSpeaking = false;
+
+      // Global variable: availableAgents (used for TTS, highlighting, etc.)
+      const availableAgents = [
+        { name: "Sophia", avatar: "static/images/agents/sophia.png", voice_id: "XB0fDUnXU5powFXDhCwa" },
+        { name: "Rex", avatar: "static/images/agents/rex.png", voice_id: "TX3LPaxmHKxFdv7VOQHJ" },
+        { name: "Ella", avatar: "static/images/agents/ella.png", voice_id: "XrExE9yKIg1WjnnlVkGX" },
+        { name: "Maxine", avatar: "static/images/agents/maxine.png", voice_id: "tVAXY8ApYcHIFjTH8kL0" },
+        { name: "Orion", avatar: "static/images/agents/orion.png", voice_id: "7ml0LUl80q5HrlC5rH5n" },
+        { name: "Luna", avatar: "static/images/agents/luna.png", voice_id: "zA6D7RyKdc2EClouEMkP" },
+        { name: "Jasper", avatar: "static/images/agents/jasper.png", voice_id: "eUAnqvLQWNX29twcYLUM" },
+        { name: "Violet", avatar: "static/images/agents/violet.png", voice_id: "EIdfNdxb4fnsE39tEAB1" },
+        { name: "Kai", avatar: "static/images/agents/kai.png", voice_id: "bvB801cu7ca8Klk5nO4O" },
+        { name: "Nova", avatar: "static/images/agents/nova.png", voice_id: "7Uw4vgM4Qb1qiwwUnu15" }
+      ];
+      
+      // Retrieve stored values (assumed to be stored from the landing page).
+      let currentUser = localStorage.getItem("currentUser") || "User";
+      const selectedAgents = JSON.parse(localStorage.getItem("selectedAgents") || "[]");
+      let roomName = "GuruClub_" + currentUser + "_" + Date.now();
+
+      // Display selected agents in the agents panel.
+      function displaySelectedAgents() {
+        const panel = document.getElementById("agents-panel");
+        panel.innerHTML = "";
+        selectedAgents.forEach(name => {
+          const div = document.createElement("div");
+          div.className = "agent-tile";
+          div.id = "agent-" + name;
+          const agentObj = availableAgents.find(a => a.name === name);
+          div.innerHTML = `<img src="static/images/agents/${name.toLowerCase()}.png" alt="${name}" /><br><span>${name}</span>`;
+          panel.appendChild(div);
+        });
+      }
+      displaySelectedAgents();
+
+      function startUserMeeting() {
+        const domain = "localhost:8443"; // Adjust as needed.
+        const options = {
+          roomName: roomName,
+          width: "100%",
+          height: "100%",
+          parentNode: document.getElementById("meeting-container"),
+          configOverwrite: {
+            prejoinPageEnabled: false,
+            defaultLanguage: 'en'
+          },
+          interfaceConfigOverwrite: {
+            SHOW_JITSI_WATERMARK: false,
+            SHOW_POWERED_BY: false
+          },
+          userInfo: { displayName: currentUser }
+        };
+
+        const api = new JitsiMeetExternalAPI(domain, options);
+
+        // Listen for displayName changes (if the user updates their name manually)
+        api.addEventListener("displayNameChanged", (event) => {
+          console.log("Display name changed:", event.displayName);
+          localStorage.setItem("currentUser", event.displayName);
+          currentUser = event.displayName;
+        });
+
+        // Also listen for when the conference is joined.
+        api.addEventListener("videoConferenceJoined", (event) => {
+          console.log("Video conference joined, event:", event);
+          // Some implementations may return a displayName in the event.
+          // If the name is not the default, update localStorage.
+          if (event.displayName && event.displayName !== "User") {
+            localStorage.setItem("currentUser", event.displayName);
+            currentUser = event.displayName;
+            console.log("Display name updated on join:", currentUser);
+          } else {
+            // Optionally, prompt the user to update their display name if it is still "User"
+            console.log("Joined with default display name. Consider prompting for a name update.");
+          }
+        });
+      }
+
+      startUserMeeting();
+
+      // Connect to Socket.IO.
+      const socket = io();
+      socket.on('stt_result', function(data) {
+        console.log('STT result:', data.transcript);
+        if (isAgentSpeaking) {
+          console.log("Ignoring STT result because agent audio is playing.");
+          return;
+        }
+        if (data.transcript && data.transcript.trim() !== '') {
+          sendChatMessageWithText(data.transcript.trim());
+        }
+      });
+
+      // TTS: Play agent audio for the first sentence.
+      async function playAgentAudio(agentName, text) {
+        const firstLine = text.split('\n')[0].split('.')[0] + ".";
+        const agentObj = availableAgents.find(a => a.name === agentName);
+        const voice_id = (agentObj && agentObj.voice_id) || "EXAVITQu4vr4xnSDxMaL";
+        try {
+          const response = await fetch("http://127.0.0.1:5000/api/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: firstLine, voice_id: voice_id })
+          });
+          if (response.ok) {
+            const audioBlob = await response.blob();
+            const audioURL = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioURL);
+            return new Promise(resolve => {
+              audio.onended = () => resolve();
+              audio.play();
+            });
+          } else {
+            console.error("TTS API error", response.status);
+          }
+        } catch (err) {
+          console.error("Error playing agent audio:", err);
+        }
+        return Promise.resolve();
+      }
+
+      // Helper: Play agent audio with highlight toggling.
+      async function playAgentAudioWithHighlight(agentName, text) {
+        isAgentSpeaking = true;
+        toggleAgentHighlight(agentName, true);
+        await playAgentAudio(agentName, text);
+        toggleAgentHighlight(agentName, false);
+        isAgentSpeaking = false;
+      }
+
+      // Toggle the "thinking" highlight on an agent tile.
+      function toggleAgentHighlight(name, highlight) {
+        const tile = document.getElementById("agent-" + name);
+        if (tile) {
+          if (highlight) {
+            tile.classList.add("thinking");
+          } else {
+            tile.classList.remove("thinking");
+          }
+        }
+      }
+
+      // Chat: Send a chat message (from STT auto-sending).
+      async function sendChatMessageWithText(text) {
+        const chatLog = document.getElementById("chat-log");
+        chatLog.innerHTML += `<p><b>You:</b> ${text}</p>`;
+        try {
+          const payload = {
+            user_id: currentUser,
+            user_message: text,
+            conversation_history: [],
+            agents: selectedAgents
+          };
+          const response = await fetch("http://127.0.0.1:5000/api/respond", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await response.json();
+          if (data.new_replies && Array.isArray(data.new_replies)) {
+            for (const reply of data.new_replies) {
+              chatLog.innerHTML += `<p><b>${reply.name}:</b> ${reply.content}</p>`;
+              await playAgentAudioWithHighlight(reply.name, reply.content);
+            }
+          } else {
+            chatLog.innerHTML += `<p>No response from backend.</p>`;
+          }
+        } catch (err) {
+          console.error("Error sending chat message:", err);
+          chatLog.innerHTML += `<p>Error sending message.</p>`;
+        }
+      }
+
+      // Chat: Manual submission.
+      async function sendChatMessage() {
+        const input = document.getElementById("chat-input");
+        const message = input.value.trim();
+        if (!message) return;
+        const chatLog = document.getElementById("chat-log");
+        chatLog.innerHTML += `<p><b>You:</b> ${message}</p>`;
+        input.value = "";
+        try {
+          const payload = {
+            user_id: currentUser,
+            user_message: message,
+            conversation_history: [],
+            agents: selectedAgents
+          };
+          const response = await fetch("http://127.0.0.1:5000/api/respond", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const data = await response.json();
+          if (data.new_replies && Array.isArray(data.new_replies)) {
+            for (const reply of data.new_replies) {
+              chatLog.innerHTML += `<p><b>${reply.name}:</b> ${reply.content}</p>`;
+              await playAgentAudioWithHighlight(reply.name, reply.content);
+            }
+          } else {
+            chatLog.innerHTML += `<p>No response from backend.</p>`;
+          }
+        } catch (err) {
+          console.error("Error sending chat message:", err);
+          chatLog.innerHTML += `<p>Error sending message.</p>`;
+        }
+      }
+
+      document.getElementById("chat-send").addEventListener("click", sendChatMessage);
+      document.getElementById("chat-input").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          sendChatMessage();
+        }
+      });
+
+      // Continuous STT: Capture audio and send via Socket.IO.
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+          mediaRecorder.start(1000);
+          mediaRecorder.ondataavailable = function(event) {
+            if (event.data && event.data.size > 0) {
+              const reader = new FileReader();
+              reader.onloadend = function() {
+                const base64data = reader.result.split(',')[1];
+                socket.emit('audio_chunk', { chunk: base64data });
+              };
+              reader.readAsDataURL(event.data);
+            }
+          };
+        })
+        .catch(err => {
+          console.error("Error accessing microphone:", err);
+        });
+
+      // Debug: Show user profile when clicking the debug link.
+      document.getElementById("debug-link").addEventListener("click", async () => {
+        try {
+          const response = await fetch(`http://127.0.0.1:5000/api/get_profile?user_id=${currentUser}`);
+          const data = await response.json();
+          document.getElementById("profileData").textContent = JSON.stringify(data.profile, null, 2);
+          document.getElementById("profileModal").style.display = "block";
+        } catch (err) {
+          console.error("Error fetching user profile:", err);
+        }
+      });
+
+      // Close the profile modal when the close button is clicked.
+      document.getElementById("closeProfile").addEventListener("click", () => {
+        document.getElementById("profileModal").style.display = "none";
+      });
+
+      // Set focus on chat input when page loads.
+      window.onload = () => document.getElementById("chat-input").focus();
+    </script>
+  </body>
+</html>

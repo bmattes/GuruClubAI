@@ -1,0 +1,18 @@
+.
+├── directory_structure.txt
+├── images
+│   └── agents
+│       ├── ella.png
+│       ├── jasper.png
+│       ├── kai.png
+│       ├── luna.png
+│       ├── maxine.png
+│       ├── nova.png
+│       ├── orion.png
+│       ├── rex.png
+│       ├── sophia.png
+│       └── violet.png
+├── index-test.html
+└── jitsi-meet -> /Users/benmattes/code/jitsi-meet
+
+4 directories, 12 files

@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guru Club</title>
+  <style>
+    :root {
+      --primary-color: #0070c9;
+      --background-color: #f8f8f8;
+      --border-color: #e0e0e0;
+      --shadow-color: rgba(0, 0, 0, 0.1);
+      --highlight-color: #ffcc00;
+      --accent-red: #e74c3c;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --transition-duration: 0.3s;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      font-family: var(--font-family);
+      background-color: var(--background-color);
+      color: #333;
+    }
+    /* Wrap chat boxes in a container with an ID so we can toggle its visibility */
+    #chat-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      width: 100vw;
+      height: 100vh;
+    }
+    .participant {
+      background-color: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      margin: 10px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 4px 8px var(--shadow-color);
+      transition: box-shadow var(--transition-duration);
+      position: relative;
+    }
+    .participant:hover { box-shadow: 0 6px 12px var(--shadow-color); }
+    .participant.highlight {
+      border-color: var(--highlight-color);
+      box-shadow: 0 0 10px var(--highlight-color);
+    }
+    .avatar {
+      background: linear-gradient(135deg, var(--primary-color), #005fa3);
+      color: #fff;
+      font-size: 48px;
+      text-align: center;
+      padding: 16px;
+    }
+    .name {
+      background: #f0f0f0;
+      font-weight: bold;
+      text-align: center;
+      padding: 8px;
+      font-size: 18px;
+    }
+    .messages {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      font-size: 16px;
+      text-align: center;
+    }
+    /* User controls in the User chat box */
+    #user-controls {
+      padding: 8px;
+      background-color: #fafafa;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #user-controls input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      transition: border var(--transition-duration);
+    }
+    #user-controls input[type="text"]:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+    #user-button-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+    }
+    /* Small square buttons for Raise Hand and Question */
+    #handButtonUser,
+    #questionButtonUser {
+      width: 40px;
+      height: 40px;
+      font-size: 16px;
+      border: none;
+      border-radius: 4px;
+      background: #eee;
+      transition: background var(--transition-duration);
+      cursor: pointer;
+      flex: none;
+    }
+    #handButtonUser:hover,
+    #questionButtonUser:hover { background: #ddd; }
+    /* Large red Record button */
+    #recordButtonUser {
+      background-color: var(--accent-red);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 70px;
+      height: 70px;
+      font-size: 18px;
+      transition: background-color var(--transition-duration);
+      cursor: pointer;
+      flex: none;
+    }
+    #recordButtonUser:hover { background-color: #c0392b; }
+    .chat-controls { display: none; }
+    .messages::-webkit-scrollbar { width: 6px; }
+    .messages::-webkit-scrollbar-track { background: #f0f0f0; }
+    .messages::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+    /* Jitsi container – this will be shown when switching to Jitsi view */
+    #jitsi-container {
+      width: 100vw;
+      height: 100vh;
+      display: none;
+    }
+    /* Intro Modal styling */
+    #introModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+    #introModal input[type="text"] {
+      font-size: 24px;
+      padding: 10px;
+      width: 80%;
+      max-width: 300px;
+      margin-bottom: 20px;
+    }
+    #introModal button {
+      font-size: 24px;
+      padding: 10px 20px;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  </style>
+  <!-- Include Jitsi Meet External API -->
+  <script src="https://meet.jit.si/external_api.js"></script>
+</head>
+<body>
+  <!-- Intro Modal for Username -->
+  <div id="introModal">
+    <h2>Welcome to Guru Club</h2>
+    <p>Please enter your name:</p>
+    <input type="text" id="introNameInput" placeholder="Your Name">
+    <button id="introSubmitButton">Continue</button>
+  </div>
+
+  <!-- Chat Container for your chat-box prototype -->
+  <div id="chat-container" class="meeting-container">
+    <!-- User Chat Box (Top Left) -->
+    <div class="participant" id="participant-user">
+      <div class="avatar" id="avatar-user">You</div>
+      <div class="name" id="name-user">You</div>
+      <div class="messages" id="messages-user"></div>
+      <div id="user-controls">
+        <input type="text" id="userInput" placeholder="Type your message...">
+        <div id="user-button-row">
+          <button id="handButtonUser" title="Raise Hand">✋</button>
+          <button id="recordButtonUser">Record</button>
+          <button id="questionButtonUser" title="Ask a Question">?</button>
+        </div>
+      </div>
+    </div>
+    <!-- Sophia Chat Box (Top Right) -->
+    <div class="participant" id="participant-Sophia">
+      <div class="avatar" id="avatar-Sophia">S</div>
+      <div class="name" id="name-Sophia">Sophia</div>
+      <div class="messages" id="messages-Sophia"></div>
+    </div>
+    <!-- Rex Chat Box (Bottom Left) -->
+    <div class="participant" id="participant-Rex">
+      <div class="avatar" id="avatar-Rex">R</div>
+      <div class="name" id="name-Rex">Rex</div>
+      <div class="messages" id="messages-Rex"></div>
+    </div>
+    <!-- Ella Chat Box (Bottom Right) -->
+    <div class="participant" id="participant-Ella">
+      <div class="avatar" id="avatar-Ella">E</div>
+      <div class="name" id="name-Ella">Ella</div>
+      <div class="messages" id="messages-Ella"></div>
+    </div>
+  </div>
+
+  <!-- Jitsi Meeting Container (initially hidden) -->
+  <div id="jitsi-container"></div>
+
+  <!-- Pass DEBUG_MODE from Flask (if any) -->
+  <script>
+    const DEBUG_MODE = {{ debug_tts|default("false")|tojson }};
+  </script>
+
+  <!-- Main Script -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      // --- Global Variables ---
+      let currentUserName = "user_1"; // This will be updated via the intro modal.
+      const conversationHistory = [];
+      let currentAudio = null;
+      let currentAudioResolve = null;
+      let currentAgentName = null;
+      let handRaised = false;
+      let wasSkipped = false;
+
+      // --- Global Audio Player & Delay Resolver ---
+      const audioPlayer = new Audio();
+      let delayTimer = null;
+      let currentDelayResolve = null;
+
+      // --- Intro Modal Logic ---
+      function submitName() {
+        const nameInput = document.getElementById("introNameInput").value.trim();
+        if (nameInput) {
+          currentUserName = nameInput;
+          document.getElementById("name-user").textContent = nameInput;
+          document.getElementById("introModal").style.display = "none";
+          // For this prototype, we choose to load Jitsi after the name is submitted.
+          startJitsiMeeting();
+        } else {
+          alert("Please enter a valid name.");
+        }
+      }
+      const introSubmitBtn = document.getElementById("introSubmitButton");
+      introSubmitBtn.addEventListener("click", submitName);
+      introSubmitBtn.addEventListener("touchend", function(e) {
+        e.preventDefault();
+        submitName();
+      });
+      document.getElementById("introNameInput").addEventListener("keydown", function(e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          submitName();
+        }
+      });
+
+      // --- Jitsi Meeting Initialization ---
+      function startJitsiMeeting() {
+        // Ensure the jitsi-container exists.
+        const jitsiContainer = document.getElementById("jitsi-container");
+        if (!jitsiContainer) {
+          console.error("jitsi-container element not found.");
+          return;
+        }
+        // Show Jitsi container and hide chat container.
+        jitsiContainer.style.display = "block";
+        const chatContainer = document.getElementById("chat-container");
+        if (chatContainer) {
+          chatContainer.style.display = "none";
+        }
+        // Generate a unique room name.
+        const roomName = "GuruClub_" + currentUserName + "_" + Date.now();
+        const domain = "meet.jit.si";
+        const options = {
+          roomName: roomName,
+          width: "100%",
+          height: "100%",
+          parentNode: jitsiContainer,
+          interfaceConfigOverwrite: {
+            DEFAULT_BACKGROUND: "#f8f8f8",
+            TOOLBAR_BUTTONS: ["microphone", "camera", "hangup", "chat"]
+          }
+        };
+        try {
+          const api = new JitsiMeetExternalAPI(domain, options);
+          api.addEventListener("videoConferenceJoined", () => {
+            console.log("Joined Jitsi Meeting Room:", roomName);
+          });
+          api.addEventListener("participantLeft", (data) => {
+            console.log("Participant left:", data);
+          });
+        } catch (err) {
+          console.error("Error initializing JitsiMeetExternalAPI:", err);
+        }
+      }
+
+      // --- Helper Functions for Chat Boxes ---
+      function clearAllHighlights() {
+        ["user", "Sophia", "Rex", "Ella"].forEach(participant => {
+          document.getElementById("participant-" + (participant === "user" ? "user" : participant))
+            .classList.remove("highlight");
+        });
+      }
+
+      function setParticipantMessage(participant, content, turn_id) {
+        const pane = document.getElementById("messages-" + (participant === "user" ? "user" : participant));
+        pane.innerHTML = "";
+        if (content) {
+          const div = document.createElement("div");
+          div.className = "message";
+          if (turn_id !== undefined) {
+            div.innerHTML = `<span class="debug-id">[Turn ${turn_id}]</span> ${content}`;
+          } else {
+            div.textContent = content;
+          }
+          pane.appendChild(div);
+          // Append a small insight button.
+          const insightButton = document.createElement("button");
+          insightButton.textContent = "+1";
+          insightButton.style.fontSize = "10px";
+          insightButton.style.marginLeft = "10px";
+          insightButton.addEventListener("click", function(e) {
+            e.stopPropagation();
+            giveInsight(currentUserName, (participant === "user") ? currentUserName : participant);
+          });
+          pane.appendChild(insightButton);
+        }
+      }
+
+      function clearMessageForParticipant(participant) {
+        document.getElementById("messages-" + (participant === "user" ? "user" : participant)).innerHTML = "";
+      }
+
+      async function getProfile() {
+        // Placeholder for profile updates.
+      }
+
+      const agentVoices = {
+        "Sophia": "XB0fDUnXU5powFXDhCwa",
+        "Rex": "TX3LPaxmHKxFdv7VOQHJ",
+        "Ella": "XrExE9yKIg1WjnnlVkGX"
+      };
+
+      // --- Skip Event Listener for Agent Chat Boxes ---
+      function setupSkipEventListeners() {
+        const agents = ["Sophia", "Rex", "Ella"];
+        agents.forEach(agent => {
+          const elem = document.getElementById("participant-" + agent);
+          if (elem) {
+            elem.addEventListener("click", function() {
+              if (currentAudio && currentAgentName === agent) {
+                console.log("Skip triggered for", agent);
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio.src = "";
+                wasSkipped = true;
+                if (delayTimer !== null) {
+                  clearTimeout(delayTimer);
+                  delayTimer = null;
+                }
+                if (currentDelayResolve) {
+                  currentDelayResolve();
+                  currentDelayResolve = null;
+                }
+                if (currentAudioResolve) {
+                  currentAudioResolve();
+                  currentAudioResolve = null;
+                }
+                clearAllHighlights();
+                clearMessageForParticipant(agent);
+                currentAudio = null;
+                currentAgentName = null;
+              }
+            });
+          }
+        });
+      }
+      setupSkipEventListeners();
+
+      // --- TTS Playback with Global Audio Player and Extra Delay ---
+      async function playAudioForAgent(replyObj) {
+        let sentences = replyObj.content.match(/[^\.!\?]+[\.!\?]+/g);
+        if (!sentences) { sentences = [replyObj.content]; }
+        const firstSentence = sentences[0].trim();
+        const extraDelay = sentences.length * 2000;
+        const voice_id = agentVoices[replyObj.name] || "default_voice_id";
+        console.log("Calling /api/tts for", replyObj.name, "with text:", firstSentence, "and voice_id:", voice_id);
+        try {
+          const response = await fetch("/api/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: firstSentence, voice_id: voice_id })
+          });
+          if (!response.ok) {
+            console.error("TTS API error for", replyObj.name, response.statusText);
+            return;
+          }
+          const blob = await response.blob();
+          console.log("Received blob for", replyObj.name, "with size:", blob.size);
+          const audioUrl = URL.createObjectURL(blob);
+          audioPlayer.src = audioUrl;
+          audioPlayer.load();
+          currentAudio = audioPlayer;
+          currentAgentName = replyObj.name;
+          const audioPromise = new Promise((resolve) => {
+            function onEnded() {
+              console.log("Audio playback ended for", replyObj.name);
+              audioPlayer.removeEventListener("ended", onEnded);
+              resolve();
+            }
+            audioPlayer.addEventListener("ended", onEnded);
+            currentAudioResolve = () => {
+              audioPlayer.removeEventListener("ended", onEnded);
+              console.log("Audio skipped for", replyObj.name);
+              resolve();
+            };
+          });
+          const playResult = audioPlayer.play();
+          if (playResult !== undefined) {
+            playResult.catch(error => {
+              console.error("Audio.play() error for", replyObj.name, error);
+            });
+          }
+          const delayPromise = new Promise((resolve) => {
+            delayTimer = setTimeout(() => {
+              console.log("Extra delay completed for", replyObj.name);
+              resolve();
+            }, extraDelay);
+            currentDelayResolve = resolve;
+          });
+          await Promise.all([audioPromise, delayPromise]);
+          wasSkipped = false;
+          if (delayTimer !== null) {
+            clearTimeout(delayTimer);
+            delayTimer = null;
+          }
+          currentDelayResolve = null;
+          currentAudio = null;
+          currentAgentName = null;
+          currentAudioResolve = null;
+          return;
+        } catch (error) {
+          console.error("Error in TTS call for", replyObj.name, error);
+        }
+      }
+
+      // --- Sequential Agent Reply Handling ---
+      async function handleAgentResponses(force_question = false) {
+        let lastUserMessage = "";
+        for (let i = conversationHistory.length - 1; i >= 0; i--) {
+          if (conversationHistory[i].role === "user") {
+            lastUserMessage = conversationHistory[i].content;
+            break;
+          }
+        }
+        let agentsToReply = force_question 
+          ? [randomChoice(["Sophia", "Rex", "Ella"])]
+          : conversation_manager(lastUserMessage);
+        for (let i = 0; i < agentsToReply.length; i++) {
+          const agent = agentsToReply[i];
+          const payload = {
+            user_id: currentUserName,
+            conversation_history: conversationHistory,
+            agent: agent,
+            force_question: force_question
+          };
+          try {
+            const response = await fetch("/api/agent_reply", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            const reply = data.reply;
+            conversationHistory.push({ role: "assistant", name: agent, content: reply });
+            setParticipantMessage(agent, reply);
+            document.getElementById("participant-" + agent).classList.add("highlight");
+            await playAudioForAgent({ name: agent, content: reply });
+            clearAllHighlights();
+          } catch (error) {
+            console.error("Error handling reply for agent", agent, error);
+          }
+        }
+      }
+
+      function randomChoice(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+
+      // --- Updated sendMessage Function ---
+      async function sendMessage(message, extraPayload = {}) {
+        const payload = {
+          user_id: currentUserName,
+          user_message: message,
+          conversation_history: conversationHistory,
+          ...extraPayload
+        };
+        try {
+          conversationHistory.push({ role: "user", content: message });
+          clearMessageForParticipant("user");
+          clearMessageForParticipant("Sophia");
+          clearMessageForParticipant("Rex");
+          clearMessageForParticipant("Ella");
+          setParticipantMessage("user", message);
+          await handleAgentResponses(extraPayload.force_question || false);
+          clearAllHighlights();
+          document.getElementById("participant-user").classList.add("highlight");
+          getProfile();
+        } catch (error) {
+          console.error("Error sending message:", error);
+        }
+      }
+
+      // --- Event Listener for User Text Input ---
+      document.getElementById("userInput").addEventListener("keydown", function(e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          const message = this.value.trim();
+          if (message) {
+            sendMessage(message);
+            this.value = "";
+          }
+        }
+      });
+
+      // --- MediaRecorder Setup for Google Cloud Speech-to-Text ---
+      let mediaRecorder = null;
+      let audioChunks = [];
+      let mediaStream = null;
+      async function initMediaRecorder() {
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          let options = { mimeType: 'audio/webm;codecs=opus' };
+          if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            console.log(options.mimeType, "not supported. Falling back to 'audio/mp4'.");
+            options = { mimeType: 'audio/mp4' };
+          }
+          mediaRecorder = new MediaRecorder(mediaStream, options);
+          console.log("Using MediaRecorder MIME type:", mediaRecorder.mimeType);
+          mediaRecorder.ondataavailable = event => {
+            if (event.data.size > 0) {
+              audioChunks.push(event.data);
+            }
+          };
+          mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+            audioChunks = [];
+            const formData = new FormData();
+            formData.append("audio", audioBlob, "recording." + (mediaRecorder.mimeType.includes("webm") ? "webm" : "mp4"));
+            try {
+              const response = await fetch("/api/google_speech", {
+                method: "POST",
+                body: formData
+              });
+              const result = await response.json();
+              console.log("Transcription result:", result);
+              if(result.transcript) {
+                sendMessage(result.transcript);
+              } else {
+                console.error("No transcript received.");
+              }
+            } catch (err) {
+              console.error("Error sending audio to Google Speech API:", err);
+            }
+            if (mediaStream) {
+              mediaStream.getTracks().forEach(track => track.stop());
+            }
+            mediaRecorder = null;
+            mediaStream = null;
+          };
+        } catch (err) {
+          console.error("Error initializing MediaRecorder:", err);
+        }
+      }
+      document.getElementById("recordButtonUser").addEventListener("click", async function() {
+        const recordBtn = this;
+        if (!mediaRecorder) {
+          await initMediaRecorder();
+        }
+        if (mediaRecorder.state === "recording") {
+          console.log("Stopping recording...");
+          mediaRecorder.stop();
+          recordBtn.textContent = "Record";
+          recordBtn.style.backgroundColor = "var(--accent-red)";
+        } else {
+          console.log("Starting recording...");
+          audioChunks = [];
+          mediaRecorder.start();
+          recordBtn.textContent = "Stop";
+          recordBtn.style.backgroundColor = "#c0392b";
+        }
+      });
+
+      // --- Event Listener for the Question Button ---
+      document.getElementById("questionButtonUser").addEventListener("click", function() {
+        console.log("Question button pressed (User box).");
+        handRaised = false;
+        clearAllHighlights();
+        document.getElementById("participant-user").classList.add("highlight");
+        sendMessage("", { force_question: true });
+        setTimeout(() => { this.classList.remove("highlight"); }, 1000);
+      });
+
+      // --- End Intro Modal Logic ---
+      // (Note: We already attached listeners above.)
+      // --- End DOMContentLoaded ---
+    });
+  </script>
+</body>
+</html>

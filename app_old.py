@@ -5,31 +5,28 @@ import uuid
 import datetime
 import openai
 import requests
+import json
 import subprocess
-import threading
-import queue
-import base64
 
 from google.oauth2 import service_account
 from google.cloud import speech
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template
 from openai import OpenAIError
 from dotenv import load_dotenv
-from flask_socketio import SocketIO, emit
 
 # Import the SQLAlchemy instance from extensions.py
 from extensions import db
 
 load_dotenv()
 
-app = Flask(__name__, static_folder="static")
+app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bookclub.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize the SQLAlchemy instance with the Flask app.
 db.init_app(app)
 
-# Initialize SocketIO
-socketio = SocketIO(app)
-
+# Import your models (they will import the same 'db' from extensions.py).
 from models import ConversationSession, UserProfile
 
 # ------------------------------
@@ -48,9 +45,7 @@ ai_agents = {
             "Do not monologue. This is a conversation. Be smart and articulate, but do not dominate the conversation with long drawn-out responses unless asked to by the user. "
             "Never start your responses with 'As a Book Critic'."
         ),
-        "voice_id": "XB0fDUnXU5powFXDhCwa",
-        "profile_image": "/static/images/agents/sophia.png",
-        "bio": "A scholarly book critic with a refined analytical perspective."
+        "voice_id": "XB0fDUnXU5powFXDhCwa"
     },
     "Rex": {
         "personality": (
@@ -61,9 +56,7 @@ ai_agents = {
             "Do not have a large vocabulary. Do not describe yourself or your interests. Speak naturally. "
             "Never start your responses with 'Yo Rex here'."
         ),
-        "voice_id": "TX3LPaxmHKxFdv7VOQHJ",
-        "profile_image": "/static/images/agents/rex.png",
-        "bio": "A contrarian with a humorous twist, quick with slang and punchlines."
+        "voice_id": "TX3LPaxmHKxFdv7VOQHJ"
     },
     "Ella": {
         "personality": (
@@ -73,80 +66,18 @@ ai_agents = {
             "Do not describe yourself or your interests. Speak naturally. "
             "You are especially generous with Insights awards toward the User and will append the marker [+Insight for: <name>] often."
         ),
-        "voice_id": "XrExE9yKIg1WjnnlVkGX",
-        "profile_image": "/static/images/agents/ella.png",
-        "bio": "Warm, optimistic, and always ready with a thoughtful observation."
-    },
-    "Maxine": {
-        "personality": (
-            "You are vibrant and creative, always ready to offer imaginative insights. "
-            "You have a flair for art and literature, and you like to bring a creative twist to every discussion. "
-            "Speak passionately yet concisely and try to inspire others with your vivid imagery."
-        ),
-        "voice_id": "tVAXY8ApYcHIFjTH8kL0",
-        "profile_image": "/static/images/agents/maxine.png",
-        "bio": "A vibrant creative spirit who loves art and imaginative commentary."
-    },
-    "Orion": {
-        "personality": (
-            "You are adventurous and curious, with an energetic perspective. "
-            "You love exploring new ideas and challenging conventional views with bold statements. "
-            "Speak with enthusiasm and encourage others to think outside the box."
-        ),
-        "voice_id": "7ml0LUl80q5HrlC5rH5n",
-        "profile_image": "/static/images/agents/orion.png",
-        "bio": "An adventurer at heart, always eager to explore and challenge norms."
-    },
-    "Luna": {
-        "personality": (
-            "You are introspective and mystical, offering deep and thoughtful commentary. "
-            "Speak in a reflective tone and share insights that connect everyday experiences to a larger, almost spiritual perspective."
-        ),
-        "voice_id": "zA6D7RyKdc2EClouEMkP",
-        "profile_image": "/static/images/agents/luna.png",
-        "bio": "A reflective soul with a mystical outlook on life."
-    },
-    "Jasper": {
-        "personality": (
-            "You are witty and playful, always ready with a clever remark or a pun. "
-            "Keep your responses short, funny, and full of lighthearted humor that can defuse tension."
-        ),
-        "voice_id": "eUAnqvLQWNX29twcYLUM",
-        "profile_image": "/static/images/agents/jasper.png",
-        "bio": "A playful wit who adds humor and levity to every conversation."
-    },
-    "Violet": {
-        "personality": (
-            "You are elegant and poised, offering refined and cultured insights. "
-            "Speak with sophistication and clarity, ensuring that your observations carry weight and finesse."
-        ),
-        "voice_id": "EIdfNdxb4fnsE39tEAB1",
-        "profile_image": "/static/images/agents/violet.png",
-        "bio": "Elegant, poised, and cultured—always bringing sophistication to the table."
-    },
-    "Kai": {
-        "personality": (
-            "You are energetic and tech-savvy, providing a modern and dynamic perspective. "
-            "Your commentary is brisk and forward-thinking, infused with a youthful enthusiasm for innovation."
-        ),
-        "voice_id": "bvB801cu7ca8Klk5nO4O",
-        "profile_image": "/static/images/agents/kai.png",
-        "bio": "A modern innovator with boundless energy and a tech-forward outlook."
-    },
-    "Nova": {
-        "personality": (
-            "You are deep and thoughtful, with a penchant for deep philosophical insights. "
-            "Speak in a measured, reflective tone that encourages others to ponder life’s big questions."
-            "But always come back to the question asked by the User. "
-        ),
-        "voice_id": "7Uw4vgM4Qb1qiwwUnu15",
-        "profile_image": "/static/images/agents/nova.png",
-        "bio": "An enigmatic thinker who offers deep, philosophical reflections."
+        "voice_id": "XrExE9yKIg1WjnnlVkGX"
     }
 }
 
+# ------------------------------
+# Global turn counter for debugging
+# ------------------------------
 TURN_COUNTER = 1
 
+# ------------------------------
+# Helper Functions
+# ------------------------------
 def parse_addressed_agents(user_message, possible_agents):
     lowered = user_message.lower()
     found = []
@@ -173,13 +104,10 @@ def generate_agent_reply(agent, conversation_history, force_question=False):
     else:
         refined_instructions = (
             "IMPORTANT: Do not ask any questions in your reply. Your response should be a concise statement or observation only. "
-            "Of utmost importance is that you stay on topic once the User has specifically mentioned a peice of media he wishes to discuss."
-            "If you are unsure what the media is, or there is some ambiguity (ie: multiple projects with the same name) then please ask for clarity."
-            "The worst thing youc an do it is to make up things about media you don't know anything about. Hallucinations are to be avoided at all costs."
-            "You love to discuss Books, movies, games, music, TV shows. Your reason for existing is to deeply engage in discussion with the user and other agents on these topics."
             "You are participating in a multi-agent discussion. Please keep your responses concise, natural, and solely as statements or commentary—not questions. "
             "Avoid long, drawn-out monologues—if you need to acknowledge a point, a short remark like 'Hmm, good point' is sufficient. "
             "Speak solely from your own perspective, and do NOT continue or finish another agent's sentences. "
+            "You did your homework. If the topic is a book, you read it; if it's a movie, you watched it; if it's a game, you played it. "
             "If you find that a previous response was insightful and directly answered a question in a valuable way, append the marker [+Insight for: <name>] at the end of your reply, where <name> is the name of the person who gave that insightful answer. "
             "Please be specific whenever possible—use specific names of characters, chapters, events, and themes that clearly demonstrate your understanding of the source material."
         )
@@ -202,10 +130,10 @@ def generate_agent_reply(agent, conversation_history, force_question=False):
     print(f"{datetime.datetime.now()} - Generating reply for agent {agent}. Conversation excerpt (last 2 messages): {conversation_history[-2:]}")
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o-2024-11-20",
+            model="gpt-3.5-turbo",
             messages=messages,
-            max_tokens=600,
-            temperature=0.3
+            max_tokens=300,
+            temperature=0.7
         )
         reply = response["choices"][0]["message"]["content"].strip()
         if not reply:
@@ -218,10 +146,17 @@ def generate_agent_reply(agent, conversation_history, force_question=False):
     return reply
 
 def generate_user_profile(conversation_history, existing_profile=None):
+    """
+    Generate an updated user profile by considering both the new user messages
+    from the conversation_history and any existing profile data (if provided).
+    """
+    # Extract only the user messages.
     user_text = "\n".join(
         f"User: {msg.get('content')}"
         for msg in conversation_history if msg.get("role") == "user"
     )
+    
+    # If an existing profile is provided, include it as context.
     context = ""
     if existing_profile:
         context = "Existing profile context: " + json.dumps(existing_profile) + "\n\n"
@@ -235,7 +170,7 @@ def generate_user_profile(conversation_history, existing_profile=None):
         "'approximate_social_economic_status', and 'approximate_political_affiliation'. "
         "Use the following context from the existing profile (if any) and the new user messages to generate an updated profile. "
         "Return only valid JSON with these keys and no additional commentary.\n\n"
-        + context +
+        f"{context}"
         "New user messages:\n" + user_text +
         "\n\nJSON:"
     )
@@ -255,10 +190,15 @@ def generate_user_profile(conversation_history, existing_profile=None):
         return {}
 
 # ------------------------------
-# Existing Routes (Chat, TTS, etc.)
+# Routes
 # ------------------------------
 @app.route("/api/agent_reply", methods=["POST"])
 def agent_reply():
+    """
+    Generate a reply for a single agent based on the current conversation history.
+    This endpoint enables sequential agent responses so that each agent's reply
+    is generated after the conversation history has been updated with previous replies.
+    """
     data = request.get_json()
     user_id = data.get("user_id", "user_1")
     conversation_history = data.get("conversation_history", [])
@@ -273,7 +213,8 @@ def insight():
     data = request.get_json()
     giver = data.get("giver")
     receiver = data.get("receiver")
-    if receiver not in ["Sophia", "Rex", "Ella", "Maxine", "Orion", "Luna", "Jasper", "Violet", "Kai", "Nova"]:
+    # If the receiver is not an agent, update their insight count.
+    if receiver not in ["Sophia", "Rex", "Ella"]:
         profile = UserProfile.query.filter_by(user_id=receiver).first()
         if profile:
             profile_data = profile.get_profile()
@@ -286,7 +227,13 @@ def insight():
         else:
             return jsonify({"status": "error", "message": "User not found"}), 404
     else:
+        # For agents, just return success.
         return jsonify({"status": "success", "receiver": receiver, "insights": None})
+
+@app.route("/")
+def index():
+    debug_tts = os.getenv("DEBUG_TTS", "false").lower() == "true"
+    return render_template("index.html", debug_tts=debug_tts)
 
 @app.route("/api/update_profile", methods=["POST"])
 def update_profile():
@@ -294,10 +241,12 @@ def update_profile():
     user_id = data.get("user_id", "user_1")
     conversation_history = data.get("conversation_history", [])
     
+    # Get any existing profile for context.
     profile = UserProfile.query.filter_by(user_id=user_id).first()
     existing_profile = profile.get_profile() if profile else None
     
     new_profile_data = generate_user_profile(conversation_history, existing_profile)
+    # Remove insights from generated data (if any)
     new_profile_data.pop("insights", None)
     
     if profile is None:
@@ -308,8 +257,10 @@ def update_profile():
     else:
         existing_profile = profile.get_profile()
         merged_profile = existing_profile.copy()
+        # Update only keys from new_profile_data, leaving insights intact.
         for key, value in new_profile_data.items():
             merged_profile[key] = value
+        # Ensure insights remains the same.
         merged_profile["insights"] = existing_profile.get("insights", 0)
     profile.set_profile(merged_profile)
     db.session.commit()
@@ -317,9 +268,7 @@ def update_profile():
 
 @app.route("/api/get_profile", methods=["GET"])
 def get_profile():
-    user_id = request.args.get("user_id")
-    if not user_id:
-        return jsonify({"error": "Missing user_id"}), 400
+    user_id = request.args.get("user_id", "user_1")
     profile = UserProfile.query.filter_by(user_id=user_id).first()
     if profile:
         return jsonify({"profile": profile.get_profile()})
@@ -330,26 +279,12 @@ def get_profile():
 def respond():
     global TURN_COUNTER
     data = request.get_json()
-    user_id = data.get("user_id")
-    if not user_id:
-        print("Error: Missing user_id in request!")
-        return jsonify({"error": "Missing user_id"}), 400
-
-
+    user_id = data.get("user_id", "user_1")
     user_message = data.get("user_message", "").strip()
     conversation_history = data.get("conversation_history", [])
-    force_question = data.get("force_question", False)
     
-    # Use only the provided agents; if none, abort.
-    selected_agents = data.get("agents")
-    if not selected_agents or not isinstance(selected_agents, list) or len(selected_agents) == 0:
-        print("No agents selected; aborting agent reply generation.")
-        return jsonify({
-            "conversation_history": conversation_history,
-            "new_replies": [],
-            "waiting_for_user": True,
-            "error": "No agents selected"
-        })
+    # Read force_question flag.
+    force_question = data.get("force_question", False)
     
     print("=== /api/respond START ===")
     print(f"{datetime.datetime.now()} - User ID: {user_id}")
@@ -368,8 +303,12 @@ def respond():
             })
     
     base_context = conversation_history.copy()
-    agents_to_reply = selected_agents
-    print(f"{datetime.datetime.now()} - Using user-selected agents: {agents_to_reply}")
+    
+    if force_question:
+        agents_to_reply = [random.choice(["Sophia", "Rex", "Ella"])]
+        print("Force question enabled. Random agent selected:", agents_to_reply)
+    else:
+        agents_to_reply = conversation_manager(user_message)
     
     new_replies = []
     for agent in agents_to_reply:
@@ -390,7 +329,6 @@ def respond():
     for reply in new_replies:
         print(f"  Agent {reply.get('name')} (turn {reply.get('turn_id')}): {reply.get('content')[:50]}...")
     
-    # Grouping and filtering replies (existing logic)
     grouped_replies = {}
     for reply in new_replies:
         agent = reply.get("name")
@@ -400,6 +338,7 @@ def respond():
                 grouped_replies[agent] = reply
         else:
             grouped_replies[agent] = reply
+    
     print(f"{datetime.datetime.now()} - Grouped Replies:", {k: v.get('content')[:50] for k, v in grouped_replies.items()})
     
     filtered_replies = []
@@ -417,6 +356,7 @@ def respond():
         else:
             filtered_replies.append(reply)
     
+    # Check for insight markers in each reply.
     for reply in filtered_replies:
         content = reply.get("content", "")
         if "[+Insight for:" in content:
@@ -426,7 +366,7 @@ def respond():
                 recipient = content[start+len("[+Insight for:"):end].strip()
                 new_content = content[:start] + content[end+1:]
                 reply["content"] = new_content.strip()
-                if recipient not in ai_agents:
+                if recipient not in ["Sophia", "Rex", "Ella"]:
                     profile = UserProfile.query.filter_by(user_id=recipient).first()
                     if profile:
                         profile_data = profile.get_profile()
@@ -442,15 +382,11 @@ def respond():
         print(f"{datetime.datetime.now()} - Last two messages: {conversation_history[-2:]}")
     print("=== /api/respond END ===")
     
-    # --- Debugging for user profile generation ---
+    # Update the user's profile in real time without overwriting existing insights.
     profile = UserProfile.query.filter_by(user_id=user_id).first()
     existing_profile = profile.get_profile() if profile else {}
-    print(f"{datetime.datetime.now()} - Existing profile for user '{user_id}': {existing_profile}")
-    print(f"{datetime.datetime.now()} - Conversation history for profile generation: {conversation_history}")
     new_profile_data = generate_user_profile(conversation_history, existing_profile)
-    print(f"{datetime.datetime.now()} - New profile data from generate_user_profile: {new_profile_data}")
     new_profile_data.pop("insights", None)
-    
     if profile is None:
         profile = UserProfile(user_id=user_id)
         db.session.add(profile)
@@ -464,9 +400,9 @@ def respond():
     profile.set_profile(merged_profile)
     db.session.commit()
     
-    session_obj = ConversationSession(user_id=user_id)
-    session_obj.set_transcript(conversation_history)
-    db.session.add(session_obj)
+    session = ConversationSession(user_id=user_id)
+    session.set_transcript(conversation_history)
+    db.session.add(session)
     db.session.commit()
     
     waiting_for_user = any(reply["content"].startswith("[TO: User]") for reply in filtered_replies)
@@ -476,13 +412,10 @@ def respond():
         "waiting_for_user": waiting_for_user
     })
 
-@app.route("/api/remote_log", methods=["POST", "GET"])
+@app.route("/api/remote_log", methods=["POST"])
 def remote_log():
-    if request.method == "POST":
-        data = request.get_json()
-        message = data.get("message", "")
-    else:
-        message = request.args.get("message", "")
+    data = request.get_json()
+    message = data.get("message", "")
     print("[REMOTE_LOG]", message)
     return jsonify({"status": "ok"})
 
@@ -499,14 +432,18 @@ def tts():
     if not text:
         return jsonify({"error": "No text provided"}), 400
     
-    debug_tts = os.getenv("DEBUG_TTS", "false").lower() == "true"
-    if debug_tts:
+    # If in DEBUG_TTS mode, modify the text for TTS to only include the first sentence.
+    let_debug = os.getenv("DEBUG_TTS", "false").lower() == "true"
+    if let_debug:
         import re
+        # Split on period followed by a space. If no period is found, this returns the whole text.
         first_sentence = re.split(r'\. ', text, maxsplit=1)[0]
+        # If the first sentence does not already end with a period, append one.
         if not first_sentence.endswith('.'):
             first_sentence += '.'
         text_for_tts = first_sentence
         print(f"{datetime.datetime.now()} - DEBUG_TTS mode enabled: using first sentence for TTS: {text_for_tts}")
+        # Use lower quality voice parameters in debug mode.
         voice_settings = {
             "stability": 0.1,
             "similarity_boost": 0.1
@@ -536,6 +473,7 @@ def tts():
         if response.status_code != 200:
             print(f"{datetime.datetime.now()} - TTS API error: {response.status_code} {response.text}")
             return jsonify({"error": "ElevenLabs TTS error", "details": response.text}), response.status_code
+        
         print(f"{datetime.datetime.now()} - TTS API call succeeded, response size: {len(response.content)}")
         print("=== /api/tts END ===")
         return response.content, 200, {"Content-Type": "audio/mpeg"}
@@ -545,16 +483,23 @@ def tts():
 
 @app.route("/api/google_speech", methods=["POST"])
 def google_speech():
+    # Make sure the audio file is available, etc.
     if "audio" not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
+
     audio_file = request.files["audio"]
     audio_content = audio_file.read()
+
+    # Load credentials from the environment variable.
     if "GOOGLE_CREDENTIALS_JSON" in os.environ:
         credentials_info = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
         credentials = service_account.Credentials.from_service_account_info(credentials_info)
     else:
+        # Optionally, fall back to using GOOGLE_APPLICATION_CREDENTIALS if that is set.
         credentials, _ = google.auth.default()
+
     client = speech.SpeechClient(credentials=credentials)
+
     config = speech.RecognitionConfig(
         encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
         sample_rate_hertz=48000,
@@ -563,6 +508,7 @@ def google_speech():
         model="phone_call"
     )
     audio_data = speech.RecognitionAudio(content=audio_content)
+    
     try:
         response = client.recognize(config=config, audio=audio_data)
         transcript = " ".join(result.alternatives[0].transcript for result in response.results)
@@ -574,105 +520,23 @@ def google_speech():
 def start_agents():
     data = request.get_json()
     room_name = data.get("roomName")
-    selected_agents = data.get("agents", [])
     if not room_name:
         return {"error": "No roomName provided"}, 400
-    if not selected_agents:
-        return {"error": "No agents selected"}, 400
-    allowed_agents = {"Sophia", "Rex", "Ella", "Maxine", "Orion", "Luna", "Jasper", "Violet", "Kai", "Nova"}
-    for agent in selected_agents:
-        if agent not in allowed_agents:
-            return {"error": f"Agent {agent} is not allowed"}, 400
-    for agent in selected_agents:
+    
+    # For each agent, start a headless browser process.
+    # We'll call a helper script that does Selenium-based join.
+    agents = ["Sophia", "Rex", "Ella"]
+    for agent in agents:
+        # Example: launch a Python script that uses Selenium
         subprocess.Popen([
             "python", "headless_join.py",
             "--room", room_name,
             "--agent", agent
         ])
-    return {"status": "Agents launched", "agents": selected_agents}, 200
-
-@app.route("/meeting")
-def meeting():
-    return render_template("meeting.html")
-
-@app.route("/")
-def index():
-    debug_tts = os.getenv("DEBUG_TTS", "false").lower() == "true"
-    return render_template("index.html", debug_tts=debug_tts)
-
-# ------------------------------
-# SocketIO for Continuous STT
-# ------------------------------
-
-clients_audio_queues = {}
-
-def audio_generator(q):
-    while True:
-        chunk = q.get()
-        if chunk is None:
-            break
-        yield speech.StreamingRecognizeRequest(audio_content=chunk)
-
-def process_audio_stream(sid):
-    q = clients_audio_queues[sid]
-    client = speech.SpeechClient()
-    while True:
-        # Set up configuration; adjust encoding/sample rate to match your client.
-        config = speech.RecognitionConfig(
-            encoding=speech.RecognitionConfig.AudioEncoding.WEBM_OPUS,
-            sample_rate_hertz=48000,
-            language_code="en-US"
-        )
-        streaming_config = speech.StreamingRecognitionConfig(
-            config=config,
-            interim_results=True
-        )
-        # Create a new generator for each streaming session.
-        requests_stream = audio_generator(q)
-        try:
-            responses = client.streaming_recognize(config=streaming_config, requests=requests_stream)
-            for response in responses:
-                for result in response.results:
-                    if result.is_final:
-                        transcript = result.alternatives[0].transcript
-                        socketio.emit('stt_result', {'transcript': transcript}, room=sid)
-        except Exception as e:
-            error_str = str(e)
-            # Check for the stream duration error.
-            if "Exceeded maximum allowed stream duration" in error_str:
-                print(f"Stream duration exceeded for client {sid}, restarting stream.")
-                # Continue the loop to restart the stream.
-                continue
-            else:
-                print(f"Error in streaming for client {sid}: {e}")
-                break
-
-@socketio.on('connect')
-def on_connect():
-    sid = request.sid
-    print("Client connected:", sid)
-    clients_audio_queues[sid] = queue.Queue()
-    threading.Thread(target=process_audio_stream, args=(sid,), daemon=True).start()
-
-@socketio.on('disconnect')
-def on_disconnect():
-    sid = request.sid
-    print("Client disconnected:", sid)
-    if sid in clients_audio_queues:
-        clients_audio_queues[sid].put(None)
-        del clients_audio_queues[sid]
-
-@socketio.on('audio_chunk')
-def on_audio_chunk(data):
-    sid = request.sid
-    if sid in clients_audio_queues:
-        try:
-            chunk = base64.b64decode(data['chunk'])
-            clients_audio_queues[sid].put(chunk)
-        except Exception as e:
-            print("Error decoding audio chunk:", e)
+    
+    return {"status": "Agents launched"}, 200
 
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-    socketio.run(app, debug=True)
+    app.run(debug=True)
