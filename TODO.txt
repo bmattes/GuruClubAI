@@ -1,0 +1,6 @@
+TO DO:
+
+- Get deployment to DigitalOcean Working
+- Test on iPhone
+- remove Werkzeug 
+- setup databases?

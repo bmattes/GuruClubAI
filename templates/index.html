@@ -1,136 +1,180 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Guru Club Meeting - Agent Selection</title>
-  <style>
-    /* Basic Reset */
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: sans-serif;
-      background-color: #f8f8f8;
-      padding: 20px;
-    }
-    #selection-container {
-      max-width: 800px;
-      margin: 0 auto;
-      text-align: center;
-    }
-    header h1 {
-      font-size: 1.8em;
-      color: #0070c9;
-      margin-bottom: 20px;
-    }
-    /* Agent selection grid */
-    #agent-selection-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
-      margin-bottom: 20px;
-    }
-    .agent-card {
-      background-color: #fff;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      padding: 10px;
-      width: calc(33.33% - 20px);
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .agent-card img {
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      margin-bottom: 5px;
-    }
-    .agent-card p {
-      font-size: 0.9em;
-      color: #555;
-      margin-bottom: 5px;
-    }
-    .agent-card label {
-      font-size: 0.9em;
-      cursor: pointer;
-    }
-    /* Responsive: Stack cards vertically on small screens */
-    @media (max-width: 600px) {
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Preconnect for improved font loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Load Inter font (weights 400 & 600) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Guru Club Meeting – Select Your Agents</title>
+    <style>
+      /* Base Reset & Typography */
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #ffffff;
+        color: #333;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 20px;
+      }
+      #selection-container {
+        max-width: 900px;
+        width: 100%;
+        text-align: center;
+      }
+      header h1 {
+        font-size: 2.4em;
+        margin-bottom: 10px;
+        color: #111;
+      }
+      p.lead {
+        font-size: 1.1em;
+        color: #555;
+        margin-bottom: 40px;
+      }
+      /* Agent Grid */
+      #agent-selection-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 20px;
+        margin-bottom: 40px;
+      }
       .agent-card {
-        width: 90%;
+        background-color: #f9f9f9;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 20px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        cursor: pointer;
       }
-    }
-    button {
-      padding: 10px 20px;
-      background-color: #0070c9;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 1em;
-      width: 100%;
-    }
-  </style>
-</head>
-<body>
-  <div id="selection-container">
-    <header>
-      <h1>Guru Club Meeting</h1>
-    </header>
-    <p>Select the agents you'd like to talk to:</p>
-    <div id="agent-selection-container"></div>
-    <button id="startMeetingBtn">Start Meeting</button>
-  </div>
-  
-  <script>
-    // List of available agents with bios
-    const availableAgents = [
-      { name: "Sophia", avatar: "static/images/agents/sophia.png", bio: "A scholarly book critic with a refined analytical perspective." },
-      { name: "Rex", avatar: "static/images/agents/rex.png", bio: "A contrarian with a humorous twist, quick with slang and punchlines." },
-      { name: "Ella", avatar: "static/images/agents/ella.png", bio: "Warm, optimistic, and always ready with a thoughtful observation." },
-      { name: "Maxine", avatar: "static/images/agents/maxine.png", bio: "A vibrant creative spirit who loves art and imaginative commentary." },
-      { name: "Orion", avatar: "static/images/agents/orion.png", bio: "An adventurer at heart, always eager to explore and challenge norms." },
-      { name: "Luna", avatar: "static/images/agents/luna.png", bio: "A reflective soul with a mystical outlook on life." },
-      { name: "Jasper", avatar: "static/images/agents/jasper.png", bio: "A playful wit who adds humor and levity to every conversation." },
-      { name: "Violet", avatar: "static/images/agents/violet.png", bio: "Elegant, poised, and cultured—always bringing sophistication to the table." },
-      { name: "Kai", avatar: "static/images/agents/kai.png", bio: "A modern innovator with boundless energy and a tech-forward outlook." },
-      { name: "Nova", avatar: "static/images/agents/nova.png", bio: "An enigmatic thinker who offers deep, philosophical reflections." }
-    ];
+      .agent-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+      .agent-card img {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        margin-bottom: 15px;
+        border: 2px solid #0070f3;
+      }
+      .agent-card strong {
+        display: block;
+        font-size: 1.2em;
+        margin-bottom: 8px;
+        color: #111;
+      }
+      .agent-card p {
+        font-size: 0.9em;
+        color: #666;
+        margin-bottom: 12px;
+      }
+      /* Hide the checkbox; its state will be used for styling */
+      .agent-card input[type="checkbox"] {
+        display: none;
+      }
+      /* Visual indicator for selection */
+      .agent-card.selected {
+        border-color: #0070f3;
+        box-shadow: 0 0 0 4px rgba(0,112,243,0.2);
+      }
+      /* Start Meeting button with orange background (like openai.fm Play button) */
+      button {
+        width: 100%;
+        padding: 15px;
+        font-size: 1.1em;
+        background-color: #ff7f00;
+        border: none;
+        border-radius: 8px;
+        color: #fff;
+        cursor: pointer;
+        transition: background 0.3s ease;
+      }
+      button:hover {
+        background-color: #e06900;
+      }
+      /* Responsive adjustments */
+      @media (max-width: 600px) {
+        header h1 { font-size: 2em; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="selection-container">
+      <header>
+        <h1>Guru Club Meeting</h1>
+      </header>
+      <p class="lead">Select the agents you'd like to talk to</p>
+      <div id="agent-selection-container"></div>
+      <button id="startMeetingBtn">Start Meeting</button>
+    </div>
 
-    // Populate agent selection UI.
-    function populateAgentSelection() {
-      const container = document.getElementById("agent-selection-container");
-      container.innerHTML = "";
-      availableAgents.forEach(agent => {
-        const card = document.createElement("div");
-        card.className = "agent-card";
-        card.innerHTML = `
-          <img src="${agent.avatar}" alt="${agent.name}" />
-          <strong>${agent.name}</strong>
-          <p>${agent.bio}</p>
-          <label><input type="checkbox" value="${agent.name}"> Select</label>
-        `;
-        container.appendChild(card);
+    <!-- Click sound effect (ensure this file exists in your static folder) -->
+    <audio id="clickSound" src="static/click.mp3" preload="auto"></audio>
+    
+    <script>
+      // List of available agents with bios.
+      const availableAgents = [
+        { name: "Sophia", avatar: "static/images/agents/sophia.png", bio: "A scholarly book critic with refined insight." },
+        { name: "Rex", avatar: "static/images/agents/rex.png", bio: "Contrarian with a humorous twist." },
+        { name: "Ella", avatar: "static/images/agents/ella.png", bio: "Warm, optimistic, and thoughtful." },
+        { name: "Maxine", avatar: "static/images/agents/maxine.png", bio: "Creative and imaginative." },
+        { name: "Orion", avatar: "static/images/agents/orion.png", bio: "Adventurous and bold." },
+        { name: "Luna", avatar: "static/images/agents/luna.png", bio: "Mystical and introspective." },
+        { name: "Jasper", avatar: "static/images/agents/jasper.png", bio: "Playful with a witty edge." },
+        { name: "Violet", avatar: "static/images/agents/violet.png", bio: "Elegant, poised, and cultured." },
+        { name: "Kai", avatar: "static/images/agents/kai.png", bio: "Tech-savvy and modern." },
+        { name: "Nova", avatar: "static/images/agents/nova.png", bio: "Deep, philosophical, and enigmatic." }
+      ];
+
+      // Populate the agent selection grid.
+      function populateAgentSelection() {
+        const container = document.getElementById("agent-selection-container");
+        container.innerHTML = "";
+        availableAgents.forEach(agent => {
+          const card = document.createElement("div");
+          card.className = "agent-card";
+          card.innerHTML = `
+            <img src="${agent.avatar}" alt="${agent.name}" />
+            <strong>${agent.name}</strong>
+            <p>${agent.bio}</p>
+            <input type="checkbox" value="${agent.name}" />
+          `;
+          // Make entire card clickable.
+          card.addEventListener("click", () => {
+            const checkbox = card.querySelector("input[type='checkbox']");
+            checkbox.checked = !checkbox.checked;
+            card.classList.toggle("selected", checkbox.checked);
+            // Play click sound.
+            const clickSound = document.getElementById("clickSound");
+            if (clickSound) {
+              clickSound.currentTime = 0;
+              clickSound.play().catch(err => console.log("Click sound play failed:", err));
+            }
+          });
+          container.appendChild(card);
+        });
+      }
+      populateAgentSelection();
+
+      // When "Start Meeting" is clicked, store selected agents and redirect.
+      document.getElementById("startMeetingBtn").addEventListener("click", () => {
+        const checkboxes = document.querySelectorAll("#agent-selection-container input[type='checkbox']");
+        const selectedAgents = Array.from(checkboxes)
+          .filter(cb => cb.checked)
+          .map(cb => cb.value);
+        if (selectedAgents.length === 0) {
+          alert("Please select at least one agent.");
+          return;
+        }
+        localStorage.setItem("selectedAgents", JSON.stringify(selectedAgents));
+        window.location.href = "/meeting";
       });
-    }
-
-    populateAgentSelection();
-
-    // When "Start Meeting" is clicked, store the selected agents and redirect.
-    document.getElementById("startMeetingBtn").addEventListener("click", () => {
-      const checkboxes = document.querySelectorAll("#agent-selection-container input[type=checkbox]");
-      const selectedAgents = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
-      if (selectedAgents.length === 0) {
-        alert("Please select at least one agent.");
-        return;
-      }
-      // Save selected agents to localStorage.
-      localStorage.setItem("selectedAgents", JSON.stringify(selectedAgents));
-      // Redirect to the meeting page.
-      window.location.href = "/meeting";
-    });
-  </script>
-</body>
+    </script>
+  </body>
 </html>
