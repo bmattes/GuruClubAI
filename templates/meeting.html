@@ -6,14 +6,16 @@
     <title>Meeting - Guru Club Meeting</title>
     <!-- Jitsi External API -->
 
-
-    <!-- Local -->
-    <script src="https://localhost:8443/external_api.js"></script>
-
-    <!-- Prod -->
-    <script src="https://heychat.ca/external_api.js"></script>
-
-
+    <script>
+      // Define baseURL based on the hostname.
+      const baseURL = window.location.hostname === "localhost" 
+                        ? "https://localhost:8443" 
+                        : "https://heychat.ca";
+      // Create and append the script element dynamically.
+      const script = document.createElement("script");
+      script.src = `${baseURL}/external_api.js`;
+      document.head.appendChild(script);
+    </script>
 
     <!-- Socket.IO client library -->
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
@@ -201,9 +203,6 @@
     </div>
     
     <script>
-
-      const baseURL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? "http://127.0.0.1:5000" : "https://heychat.ca";
-
 
       let isAgentSpeaking = false;
 

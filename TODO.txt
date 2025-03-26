@@ -4,3 +4,20 @@ TO DO:
 - Test on iPhone
 - remove Werkzeug 
 - setup databases?
+
+
+For local
+
+source venv/bin/activate
+git add .
+git commit -m ""
+
+
+
+For DigitalOcean
+
+ssh root@146.190.252.157
+cd GuruClubAI
+docker container prune
+git pull origin master
+docker-compose up -d --build
