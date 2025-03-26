@@ -12,21 +12,40 @@ HTML_TEMPLATE = r"""
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Headless Agent - Fake Video</title>
-    <!-- Load external_api.min.js from the Flask static folder -->
-    <script src="http://127.0.0.1:5000/static/jitsi-meet/external_api.min.js"></script>
+    <title>Headless Agent</title>
+
     <script>
+      // Dynamically set the base URL depending on the current hostname.
+      const baseURL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+          ? "http://127.0.0.1:5000" : "https://heychat.ca";
+
+      // Dynamically load the Jitsi External API script using baseURL.
+      const script = document.createElement('script');
+      script.src = baseURL + "/static/jitsi-meet/external_api.min.js";
+      script.onload = function() {
+        console.log("Jitsi External API loaded successfully.");
+      };
+      script.onerror = function() {
+        console.error("Failed to load Jitsi External API script.");
+      };
+      document.head.appendChild(script);
+    </script>
+
+    <script>
+      // A simple debug logger that sends log messages to our backend.
       function debugLog(...args) {
         var msg = args.join(" ");
         console.log(msg);
         var img = new Image();
-        img.src = "http://127.0.0.1:5000/api/remote_log?message=" + encodeURIComponent(msg);
+        // Use the dynamic baseURL for the remote log endpoint.
+        img.src = baseURL + "/api/remote_log?message=" + encodeURIComponent(msg);
       }
       
       window.addEventListener("load", function(){
-        debugLog("Window loaded, external_api.min.js should be available.");
+        debugLog("Window loaded; external_api.min.js should be available.");
       });
       
+      // Override getUserMedia to use a fake video track based on the agent's avatar.
       const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
       navigator.mediaDevices.getUserMedia = function(constraints) {
         debugLog("getUserMedia override called with:", JSON.stringify(constraints));
@@ -37,8 +56,8 @@ HTML_TEMPLATE = r"""
           canvas.height = 480;
           const ctx = canvas.getContext("2d");
           const img = new Image();
-          // Use agent avatar from local static folder
-          img.src = "http://127.0.0.1:5000/static/images/agents/" + agentName.toLowerCase() + ".png";
+          // Use agent avatar URL via baseURL.
+          img.src = baseURL + "/static/images/agents/" + agentName.toLowerCase() + ".png";
           return new Promise((resolve, reject) => {
             img.onload = function() {
               ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -52,7 +71,7 @@ HTML_TEMPLATE = r"""
             };
           });
         } else {
-          debugLog("No video requested, calling original getUserMedia...");
+          debugLog("No video requested; calling original getUserMedia...");
           return originalGetUserMedia(constraints);
         }
       };
@@ -61,7 +80,9 @@ HTML_TEMPLATE = r"""
   <body style="margin:0; padding:0;">
     <div id="agent-jitsi" style="width:100vw; height:100vh;"></div>
     <script>
-      const domain = "127.0.0.1:5000";
+      // Determine the domain for the Jitsi API based on the environment.
+      const domain = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+          ? "127.0.0.1:5000" : "heychat.ca";
       const roomName = "__ROOM__";
       const agentName = "__AGENT__";
       
@@ -74,7 +95,7 @@ HTML_TEMPLATE = r"""
         height: "100%",
         userInfo: {
           displayName: agentName,
-          avatarUrl: "http://127.0.0.1:5000/static/images/agents/" + agentName.toLowerCase() + ".png"
+          avatarUrl: baseURL + "/static/images/agents/" + agentName.toLowerCase() + ".png"
         },
         configOverwrite: {
           prejoinPageEnabled: false,
@@ -85,7 +106,7 @@ HTML_TEMPLATE = r"""
         },
         interfaceConfigOverwrite: {
           TOOLBAR_BUTTONS: ["microphone", "camera", "hangup", "chat", "participants-pane", "tileview"],
-          DEFAULT_AVATAR_URL: "http://127.0.0.1:5000/static/images/agents/" + agentName.toLowerCase() + ".png"
+          DEFAULT_AVATAR_URL: baseURL + "/static/images/agents/" + agentName.toLowerCase() + ".png"
         }
       };
       
@@ -124,7 +145,7 @@ def main(room, agent):
         f.write(HTML_TEMPLATE.replace("__ROOM__", room).replace("__AGENT__", agent))
     
     chrome_options = Options()
-    # For testing, you might disable headless mode
+    # For testing, you might disable headless mode if you wish to see the browser.
     # chrome_options.add_argument("--headless")
     chrome_options.add_argument("--incognito")
     chrome_options.add_argument("--disable-gpu")

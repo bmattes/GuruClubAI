@@ -5,7 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Meeting - Guru Club Meeting</title>
     <!-- Jitsi External API -->
+
+
+    <!-- Local -->
     <script src="https://localhost:8443/external_api.js"></script>
+
+    <!-- Prod -->
+    <script src="https://heychat.ca/external_api.js"></script>
+
+
+
     <!-- Socket.IO client library -->
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <style>
@@ -193,6 +202,9 @@
     
     <script>
 
+      const baseURL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? "http://127.0.0.1:5000" : "https://heychat.ca";
+
+
       let isAgentSpeaking = false;
 
       // Global variable: availableAgents (used for TTS, highlighting, etc.)
@@ -293,7 +305,7 @@
         const agentObj = availableAgents.find(a => a.name === agentName);
         const voice_id = (agentObj && agentObj.voice_id) || "EXAVITQu4vr4xnSDxMaL";
         try {
-          const response = await fetch("http://127.0.0.1:5000/api/tts", {
+          const response = await fetch('${baseURL}/api/tts', {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text: firstLine, voice_id: voice_id })
@@ -347,7 +359,7 @@
             conversation_history: [],
             agents: selectedAgents
           };
-          const response = await fetch("http://127.0.0.1:5000/api/respond", {
+          const response = await fetch('${baseURL}/api/respond', {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -382,7 +394,7 @@
             conversation_history: [],
             agents: selectedAgents
           };
-          const response = await fetch("http://127.0.0.1:5000/api/respond", {
+          const response = await fetch('${baseURL}/api/respond', {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -433,7 +445,7 @@
       // Debug: Show user profile when clicking the debug link.
       document.getElementById("debug-link").addEventListener("click", async () => {
         try {
-          const response = await fetch(`http://127.0.0.1:5000/api/get_profile?user_id=${currentUser}`);
+          const response = await fetch(`${baseURL}/api/get_profile?user_id=${currentUser}`);
           const data = await response.json();
           document.getElementById("profileData").textContent = JSON.stringify(data.profile, null, 2);
           document.getElementById("profileModal").style.display = "block";
